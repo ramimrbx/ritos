@@ -5,7 +5,8 @@ namespace ritos {
 Window::Window(const char* title, int x, int y, int w, int h)
 	: m_title(title), m_x(x), m_y(y), m_width(w), m_height(h), m_active(true),
 	  m_title_color(rit::Color::White), m_border_color(rit::Color::LightGrey),
-	  m_body_color(rit::Color::Black), m_content(""), m_visible(true), m_minimized(false) {
+	  m_body_color(rit::Color::Black), m_content(""), m_visible(true), m_minimized(false),
+	  m_maximized(false), m_orig_x(x), m_orig_y(y), m_orig_width(w), m_orig_height(h) {
 }
 
 Window::~Window() {}
@@ -53,7 +54,13 @@ void Window::draw() {
 		}
 	}
 
-	// Draw Close button [X] and Minimize button [-] on the header
+	// Draw Close button [X], Minimize button [-], and Maximize button [+] on the header
+	if (m_width >= 11) {
+		// Draw Maximize [+] / [◼]
+		rit::System::draw_char('[', m_border_color, header_bg, m_x + m_width - 9, m_y);
+		rit::System::draw_char(m_maximized ? '\xFE' : '+', rit::Color::White, header_bg, m_x + m_width - 8, m_y);
+		rit::System::draw_char(']', m_border_color, header_bg, m_x + m_width - 7, m_y);
+	}
 	if (m_width >= 8) {
 		// Draw Minimize [-]
 		rit::System::draw_char('[', m_border_color, header_bg, m_x + m_width - 6, m_y);

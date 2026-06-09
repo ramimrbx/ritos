@@ -56,6 +56,8 @@ void Terminal_putchar(Terminal* self, char c);
 void Terminal_clear(Terminal* self);
 void Terminal_set_color(Terminal* self, uint8_t color);
 void Terminal_putentryat(Terminal* self, char c, uint8_t color, size_t x, size_t y);
+void Terminal_enable_double_buffer(Terminal* self, int enable);
+void Terminal_flush(Terminal* self);
 
 // Global OOP terminal instance
 extern Terminal* g_sys_terminal;

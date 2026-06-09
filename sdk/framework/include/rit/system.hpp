@@ -2,7 +2,9 @@
 #define RIT_SYSTEM_HPP
 
 #include "string.hpp"
+#include "ritos_api.h"
 #include <stdint.h>
+#include <stddef.h>
 
 namespace rit {
 
@@ -50,6 +52,20 @@ public:
 	static size_t get_heap_usage();
 	static void get_time(int& hour, int& min, int& sec);
 	static void get_date(int& year, int& month, int& day);
+
+	// Double Buffering
+	static void enable_double_buffer(bool enable);
+	static void flush();
+
+	// Get the OS API function table
+	static const RitOS_API* get_api_table();
+
+	// .rbx dynamic binary loader
+	static void* load_rbx(const char* filepath);
+
+	// App Launching
+	static void launch_app(const char* title);
+	static void set_launch_app_handler(void (*handler)(const char* title));
 };
 
 } // namespace rit

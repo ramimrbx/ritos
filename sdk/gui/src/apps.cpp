@@ -964,10 +964,15 @@ void FileExplorerWindow::handle_click(int mx, int my) {
 		// [Open] click (rx: 2 to 7)
 		if (rx >= 2 && rx <= 7) {
 			if (m_selected_idx >= 0 && m_selected_idx < m_file_count) {
-				m_editor->open_file(m_file_list[m_selected_idx]);
-				m_editor->set_visible(true);
-				m_editor->set_minimized(false);
-				m_editor->set_active(true);
+				if (m_editor != nullptr) {
+					m_editor->open_file(m_file_list[m_selected_idx]);
+					m_editor->set_visible(true);
+					m_editor->set_minimized(false);
+					m_editor->set_active(true);
+				} else {
+					rit::VFS::create_file("/sys/open_file.txt", m_file_list[m_selected_idx]);
+					rit::System::launch_app("Text Editor");
+				}
 			}
 		}
 		// [New] click (rx: 10 to 14)
@@ -1004,10 +1009,15 @@ void FileExplorerWindow::handle_click(int mx, int my) {
 			m_active_pane = 1;
 			refresh_files();
 			m_selected_idx = m_file_count - 1;
-			m_editor->open_file(new_name);
-			m_editor->set_visible(true);
-			m_editor->set_minimized(false);
-			m_editor->set_active(true);
+			if (m_editor != nullptr) {
+				m_editor->open_file(new_name);
+				m_editor->set_visible(true);
+				m_editor->set_minimized(false);
+				m_editor->set_active(true);
+			} else {
+				rit::VFS::create_file("/sys/open_file.txt", new_name);
+				rit::System::launch_app("Text Editor");
+			}
 		}
 		// [Rename] click (rx: 17 to 24)
 		else if (rx >= 17 && rx <= 24) {
@@ -1084,10 +1094,15 @@ void FileExplorerWindow::handle_key(char key) {
 			m_active_pane = 0;
 		} else if (key == '\n') { // Enter
 			if (m_selected_idx >= 0 && m_selected_idx < m_file_count) {
-				m_editor->open_file(m_file_list[m_selected_idx]);
-				m_editor->set_visible(true);
-				m_editor->set_minimized(false);
-				m_editor->set_active(true);
+				if (m_editor != nullptr) {
+					m_editor->open_file(m_file_list[m_selected_idx]);
+					m_editor->set_visible(true);
+					m_editor->set_minimized(false);
+					m_editor->set_active(true);
+				} else {
+					rit::VFS::create_file("/sys/open_file.txt", m_file_list[m_selected_idx]);
+					rit::System::launch_app("Text Editor");
+				}
 			}
 		}
 	}
@@ -1150,30 +1165,55 @@ void SettingsWindow::handle_click(int mx, int my) {
 	int rx = mx - m_x;
 	int ry = my - m_y;
 
+	char pattern = 'G';
+	char color_char = 'B';
+
+	if (rit::VFS::exists("/sys/settings.cfg")) {
+		const char* old_cfg = rit::VFS::read_file("/sys/settings.cfg");
+		if (old_cfg && old_cfg[0] != '\0' && old_cfg[1] != '\0') {
+			pattern = old_cfg[0];
+			color_char = old_cfg[1];
+		}
+	}
+
 	if (ry == 3) {
 		if (rx >= 2 && rx <= 7) {
-			m_desktop->set_bg_pattern('G');
+			pattern = 'G';
 		}
 		else if (rx >= 9 && rx <= 15) {
-			m_desktop->set_bg_pattern('S');
+			pattern = 'S';
 		}
 		else if (rx >= 17 && rx <= 23) {
-			m_desktop->set_bg_pattern('*');
+			pattern = '*';
 		}
 	}
 	else if (ry == 7) {
 		if (rx >= 2 && rx <= 7) {
-			m_desktop->set_bg_color(rit::Color::Blue);
+			color_char = 'B';
 		}
 		else if (rx >= 9 && rx <= 14) {
-			m_desktop->set_bg_color(rit::Color::DarkGrey);
+			color_char = 'D';
 		}
 		else if (rx >= 16 && rx <= 22) {
-			m_desktop->set_bg_color(rit::Color::Green);
+			color_char = 'G';
 		}
 		else if (rx >= 24 && rx <= 28) {
-			m_desktop->set_bg_color(rit::Color::Red);
+			color_char = 'R';
 		}
+	}
+
+	if (m_desktop != nullptr) {
+		if (pattern == 'G') m_desktop->set_bg_pattern('G');
+		else if (pattern == 'S') m_desktop->set_bg_pattern('S');
+		else if (pattern == '*') m_desktop->set_bg_pattern('*');
+
+		if (color_char == 'B') m_desktop->set_bg_color(rit::Color::Blue);
+		else if (color_char == 'D') m_desktop->set_bg_color(rit::Color::DarkGrey);
+		else if (color_char == 'G') m_desktop->set_bg_color(rit::Color::Green);
+		else if (color_char == 'R') m_desktop->set_bg_color(rit::Color::Red);
+	} else {
+		char new_cfg[3] = { pattern, color_char, '\0' };
+		rit::VFS::write_file("/sys/settings.cfg", new_cfg);
 	}
 }
 

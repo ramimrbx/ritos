@@ -1,4 +1,8 @@
 #include "../include/kernel/terminal.h"
+#include "../include/kernel/io.h"
+
+static uint16_t s_back_buffer[80 * 25];
+static int s_double_buffer_enabled = 0;
 
 // Define the static virtual table for Terminal OOP implementation
 static void terminal_impl_write(Terminal* self, const char* data, size_t size);
@@ -33,6 +37,10 @@ void Terminal_init(Terminal* self) {
 	self->color = (uint8_t)VGA_COLOR_LIGHT_GREY | ((uint8_t)VGA_COLOR_BLACK << 4);
 	self->buffer = (uint16_t*) 0xB8000;
 	self->vptr->clear(self);
+
+	// Disable VGA hardware cursor to prevent flickering cursor
+	outb(0x3D4, 0x0A);
+	outb(0x3D5, 0x20);
 }
 
 static void terminal_impl_clear(Terminal* self) {
@@ -128,4 +136,29 @@ void Terminal_set_color(Terminal* self, uint8_t color) {
 
 void Terminal_putentryat(Terminal* self, char c, uint8_t color, size_t x, size_t y) {
 	self->vptr->putentryat(self, c, color, x, y);
+}
+
+void Terminal_enable_double_buffer(Terminal* self, int enable) {
+	s_double_buffer_enabled = enable;
+	if (enable) {
+		self->buffer = s_back_buffer;
+		// Copy current VGA contents to back buffer
+		uint16_t* src = (uint16_t*)0xB8000;
+		for (int i = 0; i < 80 * 25; i++) {
+			s_back_buffer[i] = src[i];
+		}
+	} else {
+		self->buffer = (uint16_t*)0xB8000;
+	}
+}
+
+void Terminal_flush(Terminal* self) {
+	if (s_double_buffer_enabled) {
+		uint16_t* dest = (uint16_t*)0xB8000;
+		for (int i = 0; i < 80 * 25; i++) {
+			if (dest[i] != s_back_buffer[i]) {
+				dest[i] = s_back_buffer[i];
+			}
+		}
+	}
 }

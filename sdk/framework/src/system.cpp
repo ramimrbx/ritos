@@ -1,4 +1,5 @@
 #include "../include/rit/system.hpp"
+#include "../include/rit/vfs.hpp"
 #include "../../../kernel/include/kernel/terminal.h"
 #include "../../../kernel/include/kernel/mouse.h"
 #include "../../../kernel/include/kernel/power.h"
@@ -121,4 +122,136 @@ void System::get_date(int& year, int& month, int& day) {
 	}
 }
 
+void System::enable_double_buffer(bool enable) {
+	Terminal_enable_double_buffer(g_sys_terminal, enable ? 1 : 0);
+}
+
+void System::flush() {
+	Terminal_flush(g_sys_terminal);
+}
+
+void* System::load_rbx(const char* filepath) {
+	int length = 0;
+	const char* file_data = VFS::read_file(filepath, &length);
+	if (!file_data || length < 64) {
+		return nullptr;
+	}
+
+	// Verify magic "RBX\1"
+	if (file_data[0] != 'R' || file_data[1] != 'B' || file_data[2] != 'X' || file_data[3] != 1) {
+		return nullptr;
+	}
+
+	// Parse header
+	struct rbx_header {
+		char magic[4];
+		uint32_t load_addr;
+		uint32_t entry_point;
+		uint32_t code_size;
+		uint32_t bss_size;
+	};
+	const struct rbx_header* header = (const struct rbx_header*)file_data;
+
+	// Copy code payload to load_addr
+	uint8_t* dest = (uint8_t*)header->load_addr;
+	const uint8_t* src = (const uint8_t*)(file_data + 64);
+	for (uint32_t i = 0; i < header->code_size; i++) {
+		dest[i] = src[i];
+	}
+
+	// Clear BSS
+	uint8_t* bss = dest + header->code_size;
+	for (uint32_t i = 0; i < header->bss_size; i++) {
+		bss[i] = 0;
+	}
+
+	return (void*)header->entry_point;
+}
+
 } // namespace rit
+
+// API C functions wrapper implementation
+static void api_print(const char* text) { rit::System::print(text); }
+static void api_println(const char* text) { rit::System::println(text); }
+static void api_clear_screen() { rit::System::clear_screen(); }
+static void api_set_color(uint8_t fg, uint8_t bg) { rit::System::set_color((rit::Color)fg, (rit::Color)bg); }
+static void api_draw_char(char c, uint8_t fg, uint8_t bg, int x, int y) { rit::System::draw_char(c, (rit::Color)fg, (rit::Color)bg, x, y); }
+static void api_init_mouse() { rit::System::init_mouse(); }
+static int api_poll_mouse(int* x, int* y, uint8_t* buttons) { return rit::System::poll_mouse(*x, *y, *buttons) ? 1 : 0; }
+static void api_shutdown() { rit::System::shutdown(); }
+static void api_reboot() { rit::System::reboot(); }
+static int api_poll_keyboard(char* out_char) { return rit::System::poll_keyboard(*out_char) ? 1 : 0; }
+static size_t api_get_heap_usage() { return rit::System::get_heap_usage(); }
+static void api_get_time(int* hour, int* min, int* sec) { rit::System::get_time(*hour, *min, *sec); }
+static void api_get_date(int* year, int* month, int* day) { rit::System::get_date(*year, *month, *day); }
+
+static int api_vfs_exists(const char* name) { return rit::VFS::exists(name) ? 1 : 0; }
+static int api_vfs_create_file(const char* name, const char* content, int length) { return rit::VFS::create_file(name, content, length) ? 1 : 0; }
+static const char* api_vfs_read_file(const char* name, int* out_length) { return rit::VFS::read_file(name, out_length); }
+static int api_vfs_write_file(const char* name, const char* content, int length) { return rit::VFS::write_file(name, content, length) ? 1 : 0; }
+static int api_vfs_delete_file(const char* name) { return rit::VFS::delete_file(name) ? 1 : 0; }
+static int api_vfs_rename_file(const char* old_name, const char* new_name) { return rit::VFS::rename_file(old_name, new_name) ? 1 : 0; }
+static int api_vfs_get_file_list(const char* names[], int max_files) { return rit::VFS::get_file_list(names, max_files); }
+
+extern "C" void* kmalloc(size_t size);
+extern "C" void kfree(void* ptr);
+
+static void (*s_launch_app_cb)(const char* title) = nullptr;
+
+namespace rit {
+void System::launch_app(const char* title) {
+	if (s_launch_app_cb) {
+		s_launch_app_cb(title);
+	}
+}
+void System::set_launch_app_handler(void (*handler)(const char* title)) {
+	s_launch_app_cb = handler;
+}
+}
+
+static void api_enable_double_buffer(int enable) { rit::System::enable_double_buffer(enable != 0); }
+static void api_flush() { rit::System::flush(); }
+static void* api_load_rbx(const char* filepath) { return rit::System::load_rbx(filepath); }
+static void* api_kmalloc(size_t size) { return kmalloc(size); }
+static void api_kfree(void* ptr) { kfree(ptr); }
+static void api_launch_app(const char* title) { rit::System::launch_app(title); }
+static void api_register_launch_handler(void (*handler)(const char* title)) { rit::System::set_launch_app_handler(handler); }
+static uint16_t* api_get_screen_buffer() { return g_sys_terminal->buffer; }
+
+static const RitOS_API g_api_table = {
+	.version = 1,
+	.print = api_print,
+	.println = api_println,
+	.clear_screen = api_clear_screen,
+	.set_color = api_set_color,
+	.draw_char = api_draw_char,
+	.init_mouse = api_init_mouse,
+	.poll_mouse = api_poll_mouse,
+	.shutdown = api_shutdown,
+	.reboot = api_reboot,
+	.poll_keyboard = api_poll_keyboard,
+	.get_heap_usage = api_get_heap_usage,
+	.get_time = api_get_time,
+	.get_date = api_get_date,
+	.vfs_exists = api_vfs_exists,
+	.vfs_create_file = api_vfs_create_file,
+	.vfs_read_file = api_vfs_read_file,
+	.vfs_write_file = api_vfs_write_file,
+	.vfs_delete_file = api_vfs_delete_file,
+	.vfs_rename_file = api_vfs_rename_file,
+	.vfs_get_file_list = api_vfs_get_file_list,
+	.enable_double_buffer = api_enable_double_buffer,
+	.flush = api_flush,
+	.load_rbx = api_load_rbx,
+	.kmalloc = api_kmalloc,
+	.kfree = api_kfree,
+	.launch_app = api_launch_app,
+	.register_launch_handler = api_register_launch_handler,
+	.get_screen_buffer = api_get_screen_buffer
+};
+
+namespace rit {
+const RitOS_API* System::get_api_table() {
+	return &g_api_table;
+}
+}
