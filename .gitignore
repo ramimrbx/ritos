@@ -1,0 +1,17 @@
+# Target binary and bootable image
+ritos.bin
+ritos.iso
+
+# Build directory and object files
+*.o
+iso_root/
+
+# Local dependencies
+local_mtools/
+
+# Editor and OS specific files
+.vscode/
+.idea/
+*.swp
+*.log
+.DS_Store
