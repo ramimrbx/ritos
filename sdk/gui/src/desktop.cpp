@@ -654,7 +654,7 @@ void Desktop::draw() {
 	if (!m_start_menu_open && m_mouse_y == 24 && m_mouse_x >= 1 && m_mouse_x <= 11) {
 		start_bg = rit::Color::LightCyan;
 	}
-	const char* start_txt = " ✦ Start ";
+	const char* start_txt = " \x0F Start   ";
 	for (int i = 0; start_txt[i] != '\0'; i++) {
 		rit::System::draw_char(start_txt[i], start_fg, start_bg, 1 + i, 24);
 	}
@@ -771,7 +771,7 @@ void Desktop::draw() {
 			"  Clock",
 			"  Calendar",
 			"  Settings",
-			" ───────────────",
+			" \xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4\xC4",
 			"  Shut Down"
 		};
 		

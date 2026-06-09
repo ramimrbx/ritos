@@ -71,4 +71,4 @@ Once the system boots, you will see a GRUB bootloader menu. Press **Enter** to b
 *   **Mouse Interaction**: Left-click on desktop shortcut icons to launch applications. Drag window header bars to reposition them. Use button controls such as `[X]` to close windows or `[-]` to minimize them to the taskbar.
 *   **Active Focus**: Tab key (`[Tab]`) cycles focus between active buttons or fields on the desktop.
 *   **Closing Windows**: Press the Escape key (`[Esc]`) to close the currently focused active window.
-*   **Start Menu**: Click `✦ Start` in the bottom-left corner of the taskbar to toggle the popup Start Menu. Click `Shut Down` inside the menu to exit.
+*   **Start Menu**: Click `☼ Start` in the bottom-left corner of the taskbar to toggle the popup Start Menu. Click `Shut Down` inside the menu to exit.
