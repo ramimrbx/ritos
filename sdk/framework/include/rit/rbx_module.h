@@ -38,6 +38,8 @@ struct rbx_module {
 	int (*is_active)(void* instance);
 	void (*set_active)(void* instance, int active);
 	const char* (*get_title)(void* instance);
+	int (*is_maximized)(void* instance);
+	void (*set_maximized)(void* instance, int maximized);
 };
 
 // Interface exposed by Desktop to taskbar, startmenu, and statusbar
@@ -55,6 +57,10 @@ struct Desktop_Interface {
 	int (*get_mouse_y)(void);
 	int (*is_start_menu_open)(void);
 	void (*set_start_menu_open)(int open);
+
+	/* Pixel-precise mouse position (0..1023, 0..767) */
+	int (*get_mouse_px_x)(void);
+	int (*get_mouse_px_y)(void);
 };
 
 typedef struct rbx_module* (*rbx_init_t)(const struct RitOS_API* api, const struct Desktop_Interface* desktop);

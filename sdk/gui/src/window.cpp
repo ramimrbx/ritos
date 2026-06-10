@@ -1,21 +1,25 @@
 #include "../include/ritos/window.hpp"
 #include "../../framework/include/rit/system.hpp"
+#include "../../../kernel/include/kernel/palette.h"
 
 /* Color constants */
 #define C_WIN_TITLE1   0xFF1C2E54u  /* navy blue titlebar base */
 #define C_WIN_TITLE2   0xFF142240u  /* darker bottom */
 #define C_WIN_TITLE_A  0xFF243A70u  /* active titlebar highlight */
 #define C_WIN_TITLE_I  0xFF10192Eu  /* inactive titlebar */
-#define C_WIN_BODY     0xFFF4F6FFu  /* near-white body */
 #define C_WIN_BORDER   0xFF2A3A60u
 #define C_WIN_BORDER_A 0xFF4A80D0u  /* vivid blue active border */
 #define C_SHADOW       0x70000000u
 #define C_CLOSE_BTN    0xFFFF5F57u  /* macOS red */
 #define C_MIN_BTN      0xFFFEBC2Eu  /* macOS yellow */
 #define C_MAX_BTN      0xFF28C840u  /* macOS green */
-#define C_BTN_OFF      0xFF4A4A66u  /* inactive buttons */
+#define C_BTN_OFF      0xFF3A4258u  /* inactive buttons */
 #define C_TEXT_LIGHT   0xFFECF0FFu
 #define C_TEXT_DIM     0xFF7A96B8u
+
+/* Same palette the kernel uses for char-grid rendering, so the window body
+ * matches the background the apps draw their text onto. */
+static const uint32_t k_palette[16] = RITOS_PALETTE_INIT;
 
 namespace ritos {
 
@@ -83,51 +87,62 @@ void Window::draw() {
     int pw = m_width  * 8;
     int ph = m_height * 16;
 
-    /* Drop shadow */
-    rit::System::fb_fill_rect_blend(px + 4, py + 4, pw, ph, C_SHADOW);
+    /* Soft drop shadow (two layers) */
+    rit::System::fb_fill_rect_blend(px + 6, py + 8, pw, ph, 0x38000000u);
+    rit::System::fb_fill_rect_blend(px + 3, py + 4, pw, ph, 0x48000000u);
 
     /* Outer border */
     uint32_t border_col = m_active ? C_WIN_BORDER_A : C_WIN_BORDER;
-    rit::System::fb_fill_rounded_rect(px - 1, py - 1, pw + 2, ph + 2, 4, border_col);
+    rit::System::fb_fill_rounded_rect(px - 1, py - 1, pw + 2, ph + 2, 6, border_col);
 
     /* Title bar (24px) with gradient */
     static const int TB = 24; /* titlebar height in pixels */
     uint32_t t1 = m_active ? C_WIN_TITLE_A : C_WIN_TITLE1;
     uint32_t t2 = m_active ? C_WIN_TITLE2  : C_WIN_TITLE_I;
     rit::System::fb_fill_grad_v(px, py, pw, TB, t1, t2);
+    /* subtle top highlight */
+    rit::System::fb_fill_rect_blend(px, py, pw, 1, 0x50FFFFFFu);
 
-    /* Left accent strip on active window */
-    if (m_active)
-        rit::System::fb_fill_rect(px, py, 3, TB, C_WIN_BORDER_A);
-
-    /* Window body */
-    rit::System::fb_fill_rect(px, py + TB, pw, ph - TB, C_WIN_BODY);
+    /* Window body matches the char-grid colour the app draws onto */
+    uint32_t body_col = k_palette[(int)m_body_color & 0xF];
+    rit::System::fb_fill_rect(px, py + TB, pw, ph - TB, body_col);
 
     /* Separator line below titlebar */
     rit::System::fb_draw_hline_px(px, py + TB - 1, pw, border_col);
 
-    /* Control buttons — macOS style circles */
+    /* Control buttons — traffic-light circles with glyphs.
+     * Geometry must stay in sync with the hit test in the desktop app. */
     int btn_y  = py + TB / 2;
-    int btn_cl = px + pw - 16;  /* close  */
-    int btn_mn = px + pw - 32;  /* min    */
-    int btn_mx = px + pw - 48;  /* max    */
+    int btn_cl = px + pw - 16;  /* close    */
+    int btn_mn = px + pw - 36;  /* minimize */
+    int btn_mx = px + pw - 56;  /* maximize */
     int btn_r  = 6;
 
+    rit::System::fb_fill_circle(btn_mx, btn_y, btn_r, m_active ? C_MAX_BTN   : C_BTN_OFF);
+    rit::System::fb_fill_circle(btn_mn, btn_y, btn_r, m_active ? C_MIN_BTN   : C_BTN_OFF);
+    rit::System::fb_fill_circle(btn_cl, btn_y, btn_r, m_active ? C_CLOSE_BTN : C_BTN_OFF);
+
     if (m_active) {
-        rit::System::fb_fill_circle(btn_cl, btn_y, btn_r, C_CLOSE_BTN);
-        rit::System::fb_fill_circle(btn_mn, btn_y, btn_r, C_MIN_BTN);
-        rit::System::fb_fill_circle(btn_mx, btn_y, btn_r, C_MAX_BTN);
-    } else {
-        rit::System::fb_fill_circle(btn_cl, btn_y, btn_r, C_BTN_OFF);
-        rit::System::fb_fill_circle(btn_mn, btn_y, btn_r, C_BTN_OFF);
-        rit::System::fb_fill_circle(btn_mx, btn_y, btn_r, C_BTN_OFF);
+        uint32_t glyph = 0xFF40300Cu;
+        /* close: x cross */
+        for (int d = -2; d <= 2; d++) {
+            rit::System::fb_fill_rect(btn_cl + d, btn_y + d, 1, 1, 0xFF7A1410u);
+            rit::System::fb_fill_rect(btn_cl + d, btn_y - d, 1, 1, 0xFF7A1410u);
+        }
+        /* minimize: horizontal dash */
+        rit::System::fb_fill_rect(btn_mn - 2, btn_y, 5, 1, glyph);
+        /* maximize: small square outline */
+        rit::System::fb_fill_rect(btn_mx - 2, btn_y - 2, 5, 1, 0xFF0A5A1Cu);
+        rit::System::fb_fill_rect(btn_mx - 2, btn_y + 2, 5, 1, 0xFF0A5A1Cu);
+        rit::System::fb_fill_rect(btn_mx - 2, btn_y - 2, 1, 5, 0xFF0A5A1Cu);
+        rit::System::fb_fill_rect(btn_mx + 2, btn_y - 2, 1, 5, 0xFF0A5A1Cu);
     }
 
-    /* Title text vertically centered in titlebar */
+    /* Title text, left-aligned with a small accent dot */
     uint32_t ttl_col = m_active ? C_TEXT_LIGHT : C_TEXT_DIM;
-    int tlen = m_title.length();
-    int tpx  = px + (pw - tlen * 8) / 2;
-    rit::System::fb_draw_string_px(m_title.c_str(), ttl_col, 0, tpx, py + (TB - 16) / 2, 1);
+    if (m_active)
+        rit::System::fb_fill_circle(px + 11, py + TB / 2, 2, 0xFF5B8FFFu);
+    rit::System::fb_draw_string_px(m_title.c_str(), ttl_col, 0, px + 20, py + (TB - 16) / 2, 1);
 
     /* Generic content text via compat char-grid path */
     const char* text  = m_content.c_str();
@@ -140,7 +155,7 @@ void Window::draw() {
             char c = text[ci++];
             if (c == '\n') break;
             rit::System::draw_char(c, rit::Color::LightGrey,
-                                   rit::Color::White,
+                                   m_body_color,
                                    m_x + 2 + col, m_y + 1 + row);
         }
     }

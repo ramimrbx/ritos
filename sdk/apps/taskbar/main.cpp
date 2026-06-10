@@ -51,7 +51,7 @@ extern "C" rbx_module* rbx_module_init(const RitOS_API* api, const Desktop_Inter
             /* ── Pixel taskbar ── */
             g_api->fb_fill_grad_v(0, TASKBAR_PY, 1024, TASKBAR_H, C_TB1, C_TB2);
 
-            int mx_px = d->get_mouse_x() * 8;
+            int mx_px = d->get_mouse_px_x();
             int my    = d->get_mouse_y();
             int sm_open = d->is_start_menu_open();
 

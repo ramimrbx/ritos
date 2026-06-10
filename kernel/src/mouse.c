@@ -109,6 +109,8 @@ bool mouse_poll(MouseState* state) {
 		// Scale down to character cells (each cell is 8x16 pixels)
 		state->x = g_mouse_pixel_x / 8;
 		state->y = g_mouse_pixel_y / 16;
+		state->pixel_x = g_mouse_pixel_x;
+		state->pixel_y = g_mouse_pixel_y;
 		state->buttons = g_mouse_buttons;
 		return true;
 	}

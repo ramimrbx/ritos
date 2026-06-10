@@ -51,6 +51,7 @@ void System::draw_char(char c, Color fg, Color bg, int x, int y) { g_api->draw_c
 
 void System::init_mouse() { g_api->init_mouse(); }
 bool System::poll_mouse(int& x, int& y, uint8_t& buttons) { return g_api->poll_mouse(&x, &y, &buttons) != 0; }
+bool System::poll_mouse_px(int& x, int& y, uint8_t& buttons) { return g_api->poll_mouse_px(&x, &y, &buttons) != 0; }
 
 void System::shutdown() { g_api->shutdown(); }
 void System::reboot() { g_api->reboot(); }

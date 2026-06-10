@@ -66,6 +66,17 @@ bool System::poll_mouse(int& x, int& y, uint8_t& buttons) {
 	return false;
 }
 
+bool System::poll_mouse_px(int& x, int& y, uint8_t& buttons) {
+	MouseState state;
+	if (mouse_poll(&state)) {
+		x = state.pixel_x;
+		y = state.pixel_y;
+		buttons = state.buttons;
+		return true;
+	}
+	return false;
+}
+
 void System::shutdown() {
 	sys_shutdown();
 }
@@ -215,6 +226,7 @@ static void api_set_color(uint8_t fg, uint8_t bg) { rit::System::set_color((rit:
 static void api_draw_char(char c, uint8_t fg, uint8_t bg, int x, int y) { rit::System::draw_char(c, (rit::Color)fg, (rit::Color)bg, x, y); }
 static void api_init_mouse() { rit::System::init_mouse(); }
 static int api_poll_mouse(int* x, int* y, uint8_t* buttons) { return rit::System::poll_mouse(*x, *y, *buttons) ? 1 : 0; }
+static int api_poll_mouse_px(int* x, int* y, uint8_t* buttons) { return rit::System::poll_mouse_px(*x, *y, *buttons) ? 1 : 0; }
 static void api_shutdown() { rit::System::shutdown(); }
 static void api_reboot() { rit::System::reboot(); }
 static int api_poll_keyboard(char* out_char) { return rit::System::poll_keyboard(*out_char) ? 1 : 0; }
@@ -313,6 +325,7 @@ static const RitOS_API g_api_table = {
 	.fb_get_width = api_fb_get_width,
 	.fb_get_height = api_fb_get_height,
 	.fb_is_available = api_fb_is_available,
+	.poll_mouse_px = api_poll_mouse_px,
 };
 
 namespace rit {

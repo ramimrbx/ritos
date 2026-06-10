@@ -306,6 +306,8 @@ extern "C" rbx_module* rbx_module_init(const RitOS_API* api, const Desktop_Inter
     mod.is_active = [](void* inst) { return static_cast<ritos::Window*>(inst)->is_active() ? 1 : 0; };
     mod.set_active = [](void* inst, int active) { static_cast<ritos::Window*>(inst)->set_active(active != 0); };
     mod.get_title = [](void* inst) { return static_cast<ritos::Window*>(inst)->get_title(); };
+    mod.is_maximized = [](void* inst) { return static_cast<ritos::Window*>(inst)->is_maximized() ? 1 : 0; };
+    mod.set_maximized = [](void* inst, int maximized) { static_cast<ritos::Window*>(inst)->set_maximized(maximized != 0); };
 
     return &mod;
 }

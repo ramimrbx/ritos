@@ -49,6 +49,46 @@ static const uint32_t* const g_icon_px[9] = {
     ICON_SETTINGS, ICON_TERMINAL, ICON_IMGVIEW
 };
 
+/* ── Windows-style arrow cursor (12×20, hotspot at top-left tip) ──────── */
+#define CUR_W 12
+#define CUR_H 20
+/* X = black outline, # = white fill, . = transparent */
+static const char* const g_cursor_map[CUR_H] = {
+    "X...........",
+    "XX..........",
+    "X#X.........",
+    "X##X........",
+    "X###X.......",
+    "X####X......",
+    "X#####X.....",
+    "X######X....",
+    "X#######X...",
+    "X########X..",
+    "X#########X.",
+    "X######XXXXX",
+    "X###X##X....",
+    "X##X.X##X...",
+    "X#X..X##X...",
+    "XX....X##X..",
+    "......X##X..",
+    ".......X##X.",
+    ".......X##X.",
+    "........XX..",
+};
+static uint32_t g_cursor_px[CUR_W * CUR_H];
+static bool     g_cursor_built = false;
+
+static void build_cursor() {
+    for (int y = 0; y < CUR_H; y++)
+        for (int x = 0; x < CUR_W; x++) {
+            char c = g_cursor_map[y][x];
+            g_cursor_px[y * CUR_W + x] =
+                (c == 'X') ? 0xFF000000u :
+                (c == '#') ? 0xFFFFFFFFu : 0x00000000u;
+        }
+    g_cursor_built = true;
+}
+
 static bool str_equals(const char* a, const char* b) {
     int i = 0;
     while (a[i] && b[i]) { if (a[i]!=b[i]) return false; i++; }
@@ -89,13 +129,20 @@ public:
     void set_visible(bool v)   override { ritos::Window::set_visible(v);   m_mod->set_visible(m_mod->instance, v?1:0); }
     void set_minimized(bool v) override { ritos::Window::set_minimized(v); m_mod->set_minimized(m_mod->instance, v?1:0); }
     void set_active(bool v)    override { ritos::Window::set_active(v);    m_mod->set_active(m_mod->instance, v?1:0); }
+    void set_maximized(bool v) override {
+        /* Module first, so it snapshots/restores its own original geometry
+         * before the wrapper's set_position forwarding overwrites it. */
+        if (m_mod->set_maximized) m_mod->set_maximized(m_mod->instance, v?1:0);
+        ritos::Window::set_maximized(v);
+    }
 };
 
 /* ── Desktop ──────────────────────────────────────────────────────────── */
 class Desktop {
     ritos::Window* m_windows[16];
     int            m_window_count;
-    int            m_mouse_x, m_mouse_y;
+    int            m_mouse_x, m_mouse_y;    /* char cells (legacy interface) */
+    int            m_mouse_px, m_mouse_py;  /* exact pixels                  */
     uint8_t        m_mouse_buttons;
     ritos::Window* m_dragged_window;
     int            m_drag_offset_x, m_drag_offset_y;
@@ -117,7 +164,8 @@ class Desktop {
 
 public:
     Desktop()
-        : m_window_count(0), m_mouse_x(64), m_mouse_y(24), m_mouse_buttons(0),
+        : m_window_count(0), m_mouse_x(64), m_mouse_y(24),
+          m_mouse_px(512), m_mouse_py(384), m_mouse_buttons(0),
           m_dragged_window(nullptr), m_drag_offset_x(0), m_drag_offset_y(0),
           m_start_menu_open(false), m_taskbar(nullptr), m_startmenu(nullptr), m_statusbar(nullptr) {
         for (int i = 0; i < 16; i++) m_windows[i] = nullptr;
@@ -129,6 +177,8 @@ public:
     ritos::Window* get_window(int i) const { return m_windows[i]; }
     int  get_mouse_x() const { return m_mouse_x; }
     int  get_mouse_y() const { return m_mouse_y; }
+    int  get_mouse_px_x() const { return m_mouse_px; }
+    int  get_mouse_px_y() const { return m_mouse_py; }
     int  is_start_menu_open() const { return m_start_menu_open ? 1 : 0; }
     void set_start_menu_open(int v) { m_start_menu_open = (v != 0); }
 
@@ -186,16 +236,21 @@ public:
         e = g_api->load_rbx("/sys/statusbars.rbx");if (e) m_statusbar = ((rbx_init_t)e)(g_api, di);
     }
 
-    void update_mouse(int x, int y, uint8_t buttons) {
+    /* px/py are exact pixel coordinates */
+    void update_mouse(int px, int py, uint8_t buttons) {
         bool was = (m_mouse_buttons & 1) != 0;
         bool now = (buttons & 1) != 0;
-        m_mouse_x = x; m_mouse_y = y; m_mouse_buttons = buttons;
-        if (!was && now) handle_mouse_down(x, y);
+        m_mouse_px = px;     m_mouse_py = py;
+        m_mouse_x  = px / 8; m_mouse_y  = py / 16;
+        m_mouse_buttons = buttons;
+        if (!was && now) handle_mouse_down(px, py);
         else if (was && !now) handle_mouse_up();
-        else if (now) handle_mouse_move(x, y);
+        else if (now) handle_mouse_move(m_mouse_x, m_mouse_y);
     }
 
-    void handle_mouse_down(int x, int y) {
+    void handle_mouse_down(int px_x, int px_y) {
+        int x = px_x / 8;   /* char-cell coords for legacy hit tests */
+        int y = px_y / 16;
         /* Start menu area */
         if (m_start_menu_open) {
             if (x >= 1 && x <= 20 && y >= 27 && y <= 44) {
@@ -211,13 +266,14 @@ public:
             draw(); return;
         }
 
-        /* Window hit test */
+        /* Window hit test (pixel-accurate) */
         m_dragged_window = nullptr;
         for (int i = m_window_count-1; i >= 0; i--) {
             ritos::Window* w = m_windows[i];
             if (!w || !w->is_visible() || w->is_minimized()) continue;
             int wx=w->get_x(), wy=w->get_y(), ww=w->get_width(), wh=w->get_height();
-            if (x<wx || x>=wx+ww || y<wy || y>=wy+wh) continue;
+            int wpx=wx*8, wpy=wy*16, wpw=ww*8, wph=wh*16;
+            if (px_x<wpx || px_x>=wpx+wpw || px_y<wpy || px_y>=wpy+wph) continue;
 
             /* Bring to front */
             if (i < m_window_count-1) {
@@ -227,13 +283,19 @@ public:
             for (int k=0; k<m_window_count; k++)
                 if (m_windows[k]) m_windows[k]->set_active(k==m_window_count-1);
 
-            if (y == wy) { /* title bar */
-                /* Close: cols ww-3..ww-2 */
-                if (x >= wx+ww-3 && x <= wx+ww-2)       w->set_visible(false);
-                /* Minimize: cols ww-6..ww-5 (maps to min button at pw-30) */
-                else if (x >= wx+ww-6 && x <= wx+ww-4)  w->set_minimized(true);
-                /* Maximize: cols ww-9..ww-7 */
-                else if (x >= wx+ww-9 && x <= wx+ww-7 && ww>=11) w->set_maximized(!w->is_maximized());
+            if (px_y < wpy + 24) { /* 24px title bar */
+                /* Button centres must match the chrome in window.cpp:
+                 * close at pw-16, minimize at pw-36, maximize at pw-56 */
+                int dy = px_y - (wpy + 12);
+                int d_cl = px_x - (wpx + wpw - 16);
+                int d_mn = px_x - (wpx + wpw - 36);
+                int d_mx = px_x - (wpx + wpw - 56);
+                if (dy >= -9 && dy <= 9 && d_cl >= -9 && d_cl <= 9)
+                    w->set_visible(false);
+                else if (dy >= -9 && dy <= 9 && d_mn >= -9 && d_mn <= 9)
+                    w->set_minimized(true);
+                else if (dy >= -9 && dy <= 9 && d_mx >= -9 && d_mx <= 9)
+                    w->set_maximized(!w->is_maximized());
                 else if (!w->is_maximized()) {
                     m_dragged_window = w;
                     m_drag_offset_x = x - wx;
@@ -305,21 +367,11 @@ public:
         }
     }
 
-    /* Pixel cursor: small arrow */
+    /* Windows-style arrow cursor at exact pixel position */
     void draw_cursor() {
         if (g_api->fb_is_available()) {
-            int px = m_mouse_x * 8;
-            int py = m_mouse_y * 16;
-            /* Arrow cursor: white fill, dark outline */
-            g_api->fb_fill_rect(px,   py,   1, 10, 0xFF000000u);
-            g_api->fb_fill_rect(px+1, py,   1, 8,  0xFFFFFFFFu);
-            g_api->fb_fill_rect(px,   py,   8, 1,  0xFF000000u);
-            g_api->fb_fill_rect(px,   py+1, 6, 1,  0xFFFFFFFFu);
-            /* Diagonal */
-            for (int k = 2; k < 9; k++) {
-                g_api->fb_fill_rect(px+k-1, py+k,   1, 1, 0xFF000000u);
-                if (k < 8) g_api->fb_fill_rect(px+k, py+k, 1, 1, 0xFFFFFFFFu);
-            }
+            if (!g_cursor_built) build_cursor();
+            g_api->fb_blit_argb(g_cursor_px, m_mouse_px, m_mouse_py, CUR_W, CUR_H);
         } else {
             /* VGA fallback cursor */
             uint16_t* vm = g_api->get_screen_buffer();
@@ -343,6 +395,8 @@ static void di_toggle_window(int i)      { g_desktop->toggle_window(i); }
 static void di_launch_app(const char* t) { g_desktop->load_and_run_app(t); }
 static int  di_get_mouse_x()             { return g_desktop->get_mouse_x(); }
 static int  di_get_mouse_y()             { return g_desktop->get_mouse_y(); }
+static int  di_get_mouse_px_x()          { return g_desktop->get_mouse_px_x(); }
+static int  di_get_mouse_px_y()          { return g_desktop->get_mouse_px_y(); }
 static int  di_is_start_menu_open()      { return g_desktop->is_start_menu_open(); }
 static void di_set_start_menu_open(int v){ g_desktop->set_start_menu_open(v); }
 
@@ -358,6 +412,8 @@ static Desktop_Interface g_di = {
     .get_mouse_y       = di_get_mouse_y,
     .is_start_menu_open= di_is_start_menu_open,
     .set_start_menu_open = di_set_start_menu_open,
+    .get_mouse_px_x    = di_get_mouse_px_x,
+    .get_mouse_px_y    = di_get_mouse_px_y,
 };
 
 void Desktop::load_and_run_app(const char* id) {
@@ -407,7 +463,7 @@ extern "C" void _start(const RitOS_API* api) {
     g_desktop->draw_cursor();
     api->flush();
 
-    int prev_mx=64, prev_my=24;
+    int prev_mx=512, prev_my=384;
     uint8_t prev_buttons=0;
     int prev_sec=0;
     { int h=0,m=0,s=0; api->get_time(&h,&m,&s); prev_sec=s; }
@@ -416,7 +472,7 @@ extern "C" void _start(const RitOS_API* api) {
         int mx=prev_mx, my=prev_my;
         uint8_t buttons=prev_buttons;
 
-        if (api->poll_mouse(&mx, &my, &buttons)) {
+        if (api->poll_mouse_px(&mx, &my, &buttons)) {
             if (mx!=prev_mx || my!=prev_my || buttons!=prev_buttons) {
                 g_desktop->update_mouse(mx, my, buttons);
                 g_desktop->draw();

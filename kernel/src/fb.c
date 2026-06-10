@@ -1,4 +1,5 @@
 #include "../include/kernel/fb.h"
+#include "../include/kernel/palette.h"
 #include "../../assets/font/font_8x16.h"
 
 extern void* kmalloc(size_t size);
@@ -12,13 +13,8 @@ static uint32_t  g_pitch = 0;
 static int       g_bpp   = 0;
 static int       g_ready = 0;
 
-/* VGA palette */
-const uint32_t g_vga_palette[16] = {
-    0xFF000000, 0xFF0000AA, 0xFF00AA00, 0xFF00AAAA,
-    0xFFAA0000, 0xFFAA00AA, 0xFFAA5500, 0xFFAAAAAA,
-    0xFF555555, 0xFF5555FF, 0xFF55FF55, 0xFF55FFFF,
-    0xFFFF5555, 0xFFFF55FF, 0xFFFFFF55, 0xFFFFFFFF,
-};
+/* VGA palette, remapped to the modern RitOS theme */
+const uint32_t g_vga_palette[16] = RITOS_PALETTE_INIT;
 
 /* ─── Init ───────────────────────────────────────────────────────────── */
 void fb_init(uint64_t phys_addr, uint32_t pitch, uint32_t width, uint32_t height, uint8_t bpp) {

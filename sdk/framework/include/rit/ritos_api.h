@@ -79,6 +79,9 @@ struct RitOS_API {
 	int  (*fb_get_width)(void);
 	int  (*fb_get_height)(void);
 	int  (*fb_is_available)(void);
+
+	// Pixel-precise mouse polling (x: 0..1023, y: 0..767)
+	int (*poll_mouse_px)(int* x, int* y, uint8_t* buttons);
 };
 
 #ifdef __cplusplus

@@ -9,8 +9,10 @@ extern "C" {
 #endif
 
 typedef struct MouseState {
-	int x;
-	int y;
+	int x;          /* char-cell column (pixel_x / 8)  */
+	int y;          /* char-cell row    (pixel_y / 16) */
+	int pixel_x;    /* exact pixel position, 0..1023   */
+	int pixel_y;    /* exact pixel position, 0..767    */
 	uint8_t buttons;
 } MouseState;
 

@@ -40,6 +40,7 @@ public:
 	// Mouse Driver API
 	static void init_mouse();
 	static bool poll_mouse(int& x, int& y, uint8_t& buttons);
+	static bool poll_mouse_px(int& x, int& y, uint8_t& buttons);
 
 	// Power Management API
 	static void shutdown();

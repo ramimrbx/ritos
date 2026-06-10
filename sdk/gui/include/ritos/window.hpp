@@ -43,9 +43,9 @@ public:
 			m_orig_y = m_y;
 			m_orig_width = m_width;
 			m_orig_height = m_height;
-			set_position(0, 2);   /* below status bar */
+			set_position(0, 1);   /* below 16px status bar */
 			m_width  = 128;       /* 1024 / 8 */
-			m_height = 44;        /* rows 2..45 */
+			m_height = 44;        /* rows 1..44, ends above taskbar */
 		} else {
 			set_position(m_orig_x, m_orig_y);
 			m_width = m_orig_width;
