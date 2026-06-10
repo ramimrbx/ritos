@@ -1,10 +1,17 @@
-# Target binary and bootable image
+# Build output directory (objects, elf/rbx apps, kernel binary, ISO)
+build/
+
+# Legacy in-tree artifacts
 ritos.bin
 ritos.iso
-
-# Build directory and object files
 *.o
+*.d
 iso_root/
+sdk/apps/*.elf
+sdk/apps/*.rbx
+sdk/framework/src/embedded_apps.cpp
+scripts/bin2c
+scripts/elf2rbx
 
 # Local dependencies
 local_mtools/
@@ -15,3 +22,6 @@ local_mtools/
 *.swp
 *.log
 .DS_Store
+.claude
+.gemini
+.antigravitycli

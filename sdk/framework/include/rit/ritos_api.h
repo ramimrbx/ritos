@@ -60,6 +60,25 @@ struct RitOS_API {
 
 	// Screen Buffer Access
 	uint16_t* (*get_screen_buffer)(void);
+
+	// ── Framebuffer pixel API ───────────────────────────────────────────────
+	void (*fb_fill_rect)(int x, int y, int w, int h, uint32_t argb);
+	void (*fb_fill_rect_blend)(int x, int y, int w, int h, uint32_t argb);
+	void (*fb_blit_argb)(const uint32_t* pixels, int x, int y, int w, int h);
+	void (*fb_draw_string_px)(const char* text, uint32_t fg, uint32_t bg,
+	                          int x, int y, int transparent_bg);
+	void (*fb_fill_grad_v)(int x, int y, int w, int h,
+	                       uint32_t top, uint32_t bot);
+	void (*fb_fill_grad_h)(int x, int y, int w, int h,
+	                       uint32_t left, uint32_t right);
+	void (*fb_fill_rounded_rect)(int x, int y, int w, int h, int r,
+	                             uint32_t argb);
+	void (*fb_fill_circle)(int cx, int cy, int r, uint32_t argb);
+	void (*fb_draw_hline_px)(int x, int y, int w, uint32_t argb);
+	void (*fb_flush_px)(void);
+	int  (*fb_get_width)(void);
+	int  (*fb_get_height)(void);
+	int  (*fb_is_available)(void);
 };
 
 #ifdef __cplusplus

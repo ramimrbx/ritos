@@ -79,14 +79,19 @@ private:
 
 		if (str_equals(clean_cmd, "help")) {
 			add_line("Commands:");
-			add_line("  help - list commands");
+			add_line("  help - list all commands");
 			add_line("  ls - list VFS files");
-			add_line("  cat <file> - show content");
+			add_line("  cat <file> - show file content");
 			add_line("  create <file> <text> - write file");
 			add_line("  rm <file> - delete file");
-			add_line("  calc, clock, calen, sysmon, editor, files, config");
-			add_line("  theme <blue|dark|green|red> - change theme");
-			add_line("  bg <grid|solid|stars> - change bg");
+			add_line("  calc, clock, calen, sysmon");
+			add_line("  editor, files, config, imgview");
+			add_line("  wallpaper <name> - set wallpaper");
+			add_line("    names: picture grid stars solid");
+			add_line("           checker rain wave brick network");
+			add_line("  theme <blue|dark|green|red> - color");
+			add_line("  bg <grid|solid|stars> - background");
+			add_line("  sysinfo - system information");
 			add_line("  reboot, shutdown, clear");
 		} else if (str_equals(clean_cmd, "ls")) {
 			const char* file_list[16];
@@ -201,6 +206,89 @@ private:
 			m_desktop->launch_app("File Explorer");
 		} else if (str_equals(clean_cmd, "config")) {
 			m_desktop->launch_app("Settings");
+		} else if (str_equals(clean_cmd, "imgview")) {
+			m_desktop->launch_app("Image Viewer");
+		} else if (str_equals(clean_cmd, "wallpaper")) {
+			char wp_pattern = 'G';
+			char wp_color = 'B';
+			if (g_api->vfs_exists("/sys/settings.cfg")) {
+				int cfg_len = 0;
+				const char* old_cfg = g_api->vfs_read_file("/sys/settings.cfg", &cfg_len);
+				if (old_cfg && cfg_len >= 2) {
+					wp_pattern = old_cfg[0];
+					wp_color = old_cfg[1];
+				}
+			}
+			bool wp_valid = true;
+			if (str_equals(args, "picture"))      wp_pattern = 'P';
+			else if (str_equals(args, "grid"))    wp_pattern = 'G';
+			else if (str_equals(args, "stars"))   wp_pattern = '*';
+			else if (str_equals(args, "solid"))   wp_pattern = 'S';
+			else if (str_equals(args, "checker")) wp_pattern = 'C';
+			else if (str_equals(args, "rain"))    wp_pattern = 'R';
+			else if (str_equals(args, "wave"))    wp_pattern = 'W';
+			else if (str_equals(args, "brick"))   wp_pattern = 'B';
+			else if (str_equals(args, "network")) wp_pattern = 'N';
+			else { wp_valid = false; }
+
+			if (!wp_valid) {
+				add_line("Unknown wallpaper. Valid: picture grid");
+				add_line("  stars solid checker rain wave");
+				add_line("  brick network");
+			} else {
+				char new_cfg[3] = { wp_pattern, wp_color, '\0' };
+				g_api->vfs_write_file("/sys/settings.cfg", new_cfg, 2);
+				add_line("Wallpaper updated.");
+			}
+		} else if (str_equals(clean_cmd, "sysinfo")) {
+			add_line("--- System Information ---");
+			add_line("  OS: RitOS v1.1.0");
+			add_line("  Arch: x86 32-bit");
+			add_line("  Display: 80x25 VGA text");
+			{
+				size_t heap = g_api->get_heap_usage();
+				// Format heap usage manually
+				char info[80];
+				int idx = 0;
+				const char* prefix = "  Heap used: ";
+				while (prefix[idx]) { info[idx] = prefix[idx]; idx++; }
+				// Convert bytes to decimal
+				if (heap == 0) {
+					info[idx++] = '0';
+				} else {
+					char tmp[16];
+					int ti = 0;
+					size_t v = heap;
+					while (v > 0) { tmp[ti++] = '0' + (v % 10); v /= 10; }
+					for (int j = ti - 1; j >= 0 && idx < 78; j--) info[idx++] = tmp[j];
+				}
+				const char* suffix = " bytes";
+				int si = 0;
+				while (suffix[si] && idx < 78) { info[idx++] = suffix[si++]; }
+				info[idx] = '\0';
+				add_line(info);
+			}
+			{
+				int h = 0, m = 0, s = 0;
+				g_api->get_time(&h, &m, &s);
+				char tstr[64];
+				int idx = 0;
+				const char* prefix = "  Uptime: ";
+				while (prefix[idx]) { tstr[idx] = prefix[idx]; idx++; }
+				// Hours
+				tstr[idx++] = '0' + h / 10;
+				tstr[idx++] = '0' + h % 10;
+				tstr[idx++] = ':';
+				tstr[idx++] = '0' + m / 10;
+				tstr[idx++] = '0' + m % 10;
+				tstr[idx++] = ':';
+				tstr[idx++] = '0' + s / 10;
+				tstr[idx++] = '0' + s % 10;
+				tstr[idx] = '\0';
+				add_line(tstr);
+			}
+			add_line("  VFS: Active");
+			add_line("  Mouse: PS/2 driver");
 		} else if (str_equals(clean_cmd, "theme")) {
 			char pattern = 'G';
 			char color_char = 'B';
@@ -232,10 +320,16 @@ private:
 					color_char = old_cfg[1];
 				}
 			}
-			if (str_equals(args, "grid")) pattern = 'G';
+			if (str_equals(args, "picture")) pattern = 'P';
+			else if (str_equals(args, "grid")) pattern = 'G';
 			else if (str_equals(args, "solid")) pattern = 'S';
 			else if (str_equals(args, "stars")) pattern = '*';
-			else add_line("Unknown bg. Use grid|solid|stars");
+			else if (str_equals(args, "checker")) pattern = 'C';
+			else if (str_equals(args, "rain")) pattern = 'R';
+			else if (str_equals(args, "wave")) pattern = 'W';
+			else if (str_equals(args, "brick")) pattern = 'B';
+			else if (str_equals(args, "network")) pattern = 'N';
+			else add_line("Unknown bg. Use picture|grid|solid|stars|checker|rain|wave|brick|network");
 
 			char new_cfg[3] = { pattern, color_char, '\0' };
 			g_api->vfs_write_file("/sys/settings.cfg", new_cfg, 2);
@@ -258,8 +352,8 @@ public:
 		m_title_color = rit::Color::LightGreen;
 		m_border_color = rit::Color::LightGreen;
 		m_input_buf[0] = '\0';
-		add_line("RitOS Command Shell v0.1.0");
-		add_line("Type 'help' to see list of commands.");
+		add_line("RitOS Shell v1.1.0");
+		add_line("Type 'help' for commands.");
 	}
 
 	void draw() override {

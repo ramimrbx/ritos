@@ -67,6 +67,21 @@ void* System::load_rbx(const char* filepath) { return g_api->load_rbx(filepath);
 void System::launch_app(const char* title) { g_api->launch_app(title); }
 void System::set_launch_app_handler(void (*handler)(const char* title)) { g_api->register_launch_handler(handler); }
 
+/* ── Framebuffer pixel API – app-side forwarding ──────────────────────── */
+void System::fb_fill_rect(int x,int y,int w,int h,uint32_t c) { g_api->fb_fill_rect(x,y,w,h,c); }
+void System::fb_fill_rect_blend(int x,int y,int w,int h,uint32_t c) { g_api->fb_fill_rect_blend(x,y,w,h,c); }
+void System::fb_blit_argb(const uint32_t* p,int x,int y,int w,int h) { g_api->fb_blit_argb(p,x,y,w,h); }
+void System::fb_draw_string_px(const char* t,uint32_t fg,uint32_t bg,int x,int y,int tb) { g_api->fb_draw_string_px(t,fg,bg,x,y,tb); }
+void System::fb_fill_grad_v(int x,int y,int w,int h,uint32_t top,uint32_t bot) { g_api->fb_fill_grad_v(x,y,w,h,top,bot); }
+void System::fb_fill_grad_h(int x,int y,int w,int h,uint32_t l,uint32_t r) { g_api->fb_fill_grad_h(x,y,w,h,l,r); }
+void System::fb_fill_rounded_rect(int x,int y,int w,int h,int r,uint32_t c) { g_api->fb_fill_rounded_rect(x,y,w,h,r,c); }
+void System::fb_fill_circle(int cx,int cy,int r,uint32_t c) { g_api->fb_fill_circle(cx,cy,r,c); }
+void System::fb_draw_hline_px(int x,int y,int w,uint32_t c) { g_api->fb_draw_hline_px(x,y,w,c); }
+void System::fb_flush_px() { g_api->fb_flush_px(); }
+int  System::fb_get_width()  { return g_api->fb_get_width(); }
+int  System::fb_get_height() { return g_api->fb_get_height(); }
+int  System::fb_is_avail()   { return g_api->fb_is_available(); }
+
 // VFS redirects
 bool VFS::exists(const char* name) { return g_api->vfs_exists(name) != 0; }
 bool VFS::create_file(const char* name, const char* content, int length) { return g_api->vfs_create_file(name, content, length) != 0; }

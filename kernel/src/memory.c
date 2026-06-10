@@ -7,7 +7,9 @@ static uint8_t* heap_next = NULL;
 static const size_t HEAP_MAX = 0x4000000; // 64MB Limit
 
 void heap_init(void) {
-	// Align start heap to 4KB boundary
+	// Idempotent: a second call must not reset the bump pointer,
+	// or earlier allocations would be handed out again.
+	if (heap_next != NULL) return;
 	heap_next = (uint8_t*)(((uintptr_t)end + 4095) & ~4095);
 }
 

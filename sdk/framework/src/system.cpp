@@ -6,6 +6,7 @@
 #include "../../../kernel/include/kernel/keyboard.h"
 #include "../../../kernel/include/kernel/io.h"
 #include "../../../kernel/include/kernel/memory.h"
+#include "../../../kernel/include/kernel/fb.h"
 
 namespace rit {
 
@@ -28,7 +29,12 @@ void System::println(const String& text) {
 }
 
 void System::clear_screen() {
-	Terminal_clear(g_sys_terminal);
+	if (fb_is_available()) {
+		fb_clear_back(0xFF000000u);
+		fb_flush();
+	} else {
+		Terminal_clear(g_sys_terminal);
+	}
 }
 
 void System::set_color(Color fg, Color bg) {
@@ -37,8 +43,12 @@ void System::set_color(Color fg, Color bg) {
 }
 
 void System::draw_char(char c, Color fg, Color bg, int x, int y) {
-	uint8_t color_byte = (uint8_t)fg | ((uint8_t)bg << 4);
-	Terminal_putentryat(g_sys_terminal, c, color_byte, x, y);
+	if (fb_is_available()) {
+		fb_draw_char_grid(c, (uint8_t)fg, (uint8_t)bg, x, y);
+	} else {
+		uint8_t color_byte = (uint8_t)fg | ((uint8_t)bg << 4);
+		Terminal_putentryat(g_sys_terminal, c, color_byte, x, y);
+	}
 }
 
 void System::init_mouse() {
@@ -123,12 +133,39 @@ void System::get_date(int& year, int& month, int& day) {
 }
 
 void System::enable_double_buffer(bool enable) {
-	Terminal_enable_double_buffer(g_sys_terminal, enable ? 1 : 0);
+	if (!fb_is_available())
+		Terminal_enable_double_buffer(g_sys_terminal, enable ? 1 : 0);
 }
 
 void System::flush() {
-	Terminal_flush(g_sys_terminal);
+	if (fb_is_available()) fb_flush();
+	else Terminal_flush(g_sys_terminal);
 }
+
+/* ── Framebuffer pixel API – kernel-side implementations ─────────────── */
+void System::fb_fill_rect(int x, int y, int w, int h, uint32_t argb)
+    { ::fb_fill_rect(x, y, w, h, argb); }
+void System::fb_fill_rect_blend(int x, int y, int w, int h, uint32_t argb)
+    { ::fb_fill_rect_blend(x, y, w, h, argb); }
+void System::fb_blit_argb(const uint32_t* p, int x, int y, int w, int h)
+    { ::fb_blit_argb(p, x, y, w, h); }
+void System::fb_draw_string_px(const char* t, uint32_t fg, uint32_t bg,
+                               int x, int y, int tb)
+    { ::fb_draw_string(t, fg, bg, x, y, tb); }
+void System::fb_fill_grad_v(int x, int y, int w, int h, uint32_t top, uint32_t bot)
+    { ::fb_fill_grad_v(x, y, w, h, top, bot); }
+void System::fb_fill_grad_h(int x, int y, int w, int h, uint32_t l, uint32_t r)
+    { ::fb_fill_grad_h(x, y, w, h, l, r); }
+void System::fb_fill_rounded_rect(int x, int y, int w, int h, int r, uint32_t argb)
+    { ::fb_fill_rounded_rect(x, y, w, h, r, argb); }
+void System::fb_fill_circle(int cx, int cy, int r, uint32_t argb)
+    { ::fb_fill_circle(cx, cy, r, argb); }
+void System::fb_draw_hline_px(int x, int y, int w, uint32_t argb)
+    { ::fb_draw_hline(x, y, w, argb); }
+void System::fb_flush_px() { ::fb_flush(); }
+int  System::fb_get_width()  { return ::fb_get_width(); }
+int  System::fb_get_height() { return ::fb_get_height(); }
+int  System::fb_is_avail()   { return ::fb_is_available(); }
 
 void* System::load_rbx(const char* filepath) {
 	int length = 0;
@@ -218,6 +255,21 @@ static void api_launch_app(const char* title) { rit::System::launch_app(title); 
 static void api_register_launch_handler(void (*handler)(const char* title)) { rit::System::set_launch_app_handler(handler); }
 static uint16_t* api_get_screen_buffer() { return g_sys_terminal->buffer; }
 
+/* fb pixel wrappers */
+static void api_fb_fill_rect(int x,int y,int w,int h,uint32_t c) { ::fb_fill_rect(x,y,w,h,c); }
+static void api_fb_fill_rect_blend(int x,int y,int w,int h,uint32_t c) { ::fb_fill_rect_blend(x,y,w,h,c); }
+static void api_fb_blit_argb(const uint32_t* p,int x,int y,int w,int h) { ::fb_blit_argb(p,x,y,w,h); }
+static void api_fb_draw_string_px(const char* t,uint32_t fg,uint32_t bg,int x,int y,int tb) { ::fb_draw_string(t,fg,bg,x,y,tb); }
+static void api_fb_fill_grad_v(int x,int y,int w,int h,uint32_t t,uint32_t b) { ::fb_fill_grad_v(x,y,w,h,t,b); }
+static void api_fb_fill_grad_h(int x,int y,int w,int h,uint32_t l,uint32_t r) { ::fb_fill_grad_h(x,y,w,h,l,r); }
+static void api_fb_fill_rounded_rect(int x,int y,int w,int h,int r,uint32_t c) { ::fb_fill_rounded_rect(x,y,w,h,r,c); }
+static void api_fb_fill_circle(int cx,int cy,int r,uint32_t c) { ::fb_fill_circle(cx,cy,r,c); }
+static void api_fb_draw_hline_px(int x,int y,int w,uint32_t c) { ::fb_draw_hline(x,y,w,c); }
+static void api_fb_flush_px() { ::fb_flush(); }
+static int  api_fb_get_width()  { return ::fb_get_width(); }
+static int  api_fb_get_height() { return ::fb_get_height(); }
+static int  api_fb_is_available() { return ::fb_is_available(); }
+
 static const RitOS_API g_api_table = {
 	.version = 1,
 	.print = api_print,
@@ -247,7 +299,20 @@ static const RitOS_API g_api_table = {
 	.kfree = api_kfree,
 	.launch_app = api_launch_app,
 	.register_launch_handler = api_register_launch_handler,
-	.get_screen_buffer = api_get_screen_buffer
+	.get_screen_buffer = api_get_screen_buffer,
+	.fb_fill_rect = api_fb_fill_rect,
+	.fb_fill_rect_blend = api_fb_fill_rect_blend,
+	.fb_blit_argb = api_fb_blit_argb,
+	.fb_draw_string_px = api_fb_draw_string_px,
+	.fb_fill_grad_v = api_fb_fill_grad_v,
+	.fb_fill_grad_h = api_fb_fill_grad_h,
+	.fb_fill_rounded_rect = api_fb_fill_rounded_rect,
+	.fb_fill_circle = api_fb_fill_circle,
+	.fb_draw_hline_px = api_fb_draw_hline_px,
+	.fb_flush_px = api_fb_flush_px,
+	.fb_get_width = api_fb_get_width,
+	.fb_get_height = api_fb_get_height,
+	.fb_is_available = api_fb_is_available,
 };
 
 namespace rit {

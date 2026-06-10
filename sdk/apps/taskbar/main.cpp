@@ -4,166 +4,138 @@
 
 extern const RitOS_API* g_api;
 
-static bool str_equals(const char* s1, const char* s2) {
-	int i = 0;
-	while (s1[i] != '\0' && s2[i] != '\0') {
-		if (s1[i] != s2[i]) return false;
-		i++;
-	}
-	return s1[i] == s2[i];
-}
+/* color / layout */
+#define C_TB1        0xF0101E38u  /* dark midnight blue */
+#define C_TB2        0xF0182A4Eu  /* slightly richer */
+#define C_START1     0xFF2C4B8Au  /* nice blue start btn */
+#define C_START2     0xFF1E3464u
+#define C_START_HOV  0xFF4070C0u
+#define C_BTN_ACT    0xFF1E3060u  /* active window btn */
+#define C_BTN_NORM   0xFF14233Eu
+#define C_BTN_HOV    0xFF243A6Au
+#define C_ACCENT     0xFF5B8FFFu
+#define C_TEXT       0xFFECF0FFu
+#define C_TEXT_DIM   0xFF7A96C4u
+#define C_CLOCK      0xFF38D4C8u
+#define TASKBAR_PY   728   /* pixel y of taskbar (768-40) */
+#define TASKBAR_H    40
+#define TASKBAR_ROW  45    /* first char row of taskbar */
 
-static bool str_starts_with(const char* str, const char* prefix) {
-	int i = 0;
-	while (prefix[i] != '\0') {
-		if (str[i] != prefix[i]) return false;
-		i++;
-	}
-	return true;
+static bool str_starts(const char* str, const char* pre) {
+    int i=0; while(pre[i]){if(str[i]!=pre[i])return false;i++;} return true;
 }
-
-static const char* get_short_label(const char* title) {
-	if (str_starts_with(title, "System Monitor")) return "SysMon";
-	if (str_starts_with(title, "Calculator")) return "Calc";
-	if (str_starts_with(title, "Text Editor")) return "Editor";
-	if (str_starts_with(title, "File Explorer")) return "Files";
-	if (str_starts_with(title, "Clock")) return "Clock";
-	if (str_starts_with(title, "Calendar")) return "Calen";
-	if (str_starts_with(title, "Settings")) return "Config";
-	if (str_starts_with(title, "Terminal")) return "Term";
-	return title;
+static const char* short_label(const char* t) {
+    if(str_starts(t,"System Monitor")) return "SysMon";
+    if(str_starts(t,"Calculator"))     return "Calc";
+    if(str_starts(t,"Text Editor"))    return "Editor";
+    if(str_starts(t,"File Explorer"))  return "Files";
+    if(str_starts(t,"Clock"))          return "Clock";
+    if(str_starts(t,"Calendar"))       return "Calen";
+    if(str_starts(t,"Settings"))       return "Config";
+    if(str_starts(t,"Terminal"))       return "Term";
+    return t;
 }
 
 extern "C" rbx_module* rbx_module_init(const RitOS_API* api, const Desktop_Interface* desktop) {
-	g_api = api;
+    g_api = api;
+    static rbx_module mod;
+    mod.type = RBX_MODULE_TASKBAR;
+    const char* nm = "Task Bar"; int i=0;
+    while(nm[i]&&i<31){mod.name[i]=nm[i];i++;} mod.name[i]='\0';
+    mod.instance = (void*)desktop;
 
-	static rbx_module mod;
-	mod.type = RBX_MODULE_TASKBAR;
-	const char* nm = "Task Bar";
-	int i = 0;
-	while (nm[i] && i < 31) { mod.name[i] = nm[i]; i++; }
-	mod.name[i] = '\0';
-	mod.instance = (void*)desktop;
+    mod.draw = [](void* inst) {
+        const Desktop_Interface* d = static_cast<const Desktop_Interface*>(inst);
 
-	mod.draw = [](void* inst) {
-		const Desktop_Interface* d = static_cast<const Desktop_Interface*>(inst);
-		
-		// 1. Draw taskbar background
-		uint8_t bar_color = (uint8_t)rit::Color::LightGrey;
-		for (int x = 0; x < 80; x++) {
-			g_api->draw_char(' ', (uint8_t)rit::Color::Black, bar_color, x, 24);
-		}
+        if (g_api->fb_is_available()) {
+            /* ── Pixel taskbar ── */
+            g_api->fb_fill_grad_v(0, TASKBAR_PY, 1024, TASKBAR_H, C_TB1, C_TB2);
 
-		// 2. Draw Start button
-		int start_menu_open = d->is_start_menu_open();
-		int mx = d->get_mouse_x();
-		int my = d->get_mouse_y();
-		
-		uint8_t start_bg = start_menu_open ? (uint8_t)rit::Color::Blue : bar_color;
-		uint8_t start_fg = start_menu_open ? (uint8_t)rit::Color::White : (uint8_t)rit::Color::Black;
-		
-		if (!start_menu_open && my == 24 && mx >= 1 && mx <= 11) {
-			start_bg = (uint8_t)rit::Color::LightCyan;
-		}
-		
-		const char* start_txt = " \x0F Start   ";
-		for (int x = 0; start_txt[x] != '\0'; x++) {
-			g_api->draw_char(start_txt[x], start_fg, start_bg, 1 + x, 24);
-		}
+            int mx_px = d->get_mouse_x() * 8;
+            int my    = d->get_mouse_y();
+            int sm_open = d->is_start_menu_open();
 
-		// 3. Draw dynamic taskbar buttons for open windows
-		int win_count = d->get_window_count();
-		int current_x = 13;
-		for (int w = 0; w < win_count; w++) {
-			if (!d->is_window_visible(w)) continue;
+            /* Start button (pixel x=4..84, y=TASKBAR_PY+4..TASKBAR_PY+36) */
+            bool start_hov = (my >= TASKBAR_ROW && mx_px >= 4 && mx_px < 84);
+            uint32_t sb1 = (sm_open || start_hov) ? C_START_HOV : C_START1;
+            uint32_t sb2 = (sm_open || start_hov) ? C_START2     : C_START2;
+            g_api->fb_fill_grad_v(4, TASKBAR_PY+4, 80, 32, sb1, sb2);
+            g_api->fb_fill_rect_blend(4, TASKBAR_PY+4, 80, 1, 0x60FFFFFF);
+            g_api->fb_draw_string_px("\x0F RitOS", C_TEXT, 0, 12, TASKBAR_PY+12, 1);
 
-			const char* title = d->get_window_title(w);
-			const char* label = get_short_label(title);
-			int lbl_len = 0;
-			while (label[lbl_len] != '\0') lbl_len++;
-			int bw = lbl_len + 2;
+            /* Separator */
+            g_api->fb_fill_rect(88, TASKBAR_PY+6, 1, 28, 0xFF333360u);
 
-			// Do not draw beyond the clock starting at x = 71
-			if (current_x + bw > 70) break;
+            /* Window buttons */
+            int bx = 96;
+            int wc = d->get_window_count();
+            for (int w = 0; w < wc; w++) {
+                if (!d->is_window_visible(w)) continue;
+                const char* lbl = short_label(d->get_window_title(w));
+                int llen=0; while(lbl[llen])llen++;
+                int bw = llen*8 + 16;
+                if (bx+bw > 870) break;
 
-			int is_active = d->is_window_active(w);
-			int is_minimized = d->is_window_minimized(w);
-			int is_hovered = (my == 24 && mx >= current_x && mx < current_x + bw);
+                bool act  = d->is_window_active(w)!=0;
+                bool hov  = (my>=TASKBAR_ROW && mx_px>=bx && mx_px<bx+bw);
+                bool mini = d->is_window_minimized(w)!=0;
 
-			uint8_t fg = (uint8_t)rit::Color::Black;
-			uint8_t bg = bar_color;
+                uint32_t bc = hov ? C_BTN_HOV : (act ? C_BTN_ACT : C_BTN_NORM);
+                g_api->fb_fill_rounded_rect(bx, TASKBAR_PY+4, bw, 32, 4, bc);
+                if (act) g_api->fb_draw_hline_px(bx+2, TASKBAR_PY+35, bw-4, C_ACCENT);
+                uint32_t lc = mini ? C_TEXT_DIM : (act ? C_TEXT : C_TEXT_DIM);
+                g_api->fb_draw_string_px(lbl, lc, 0, bx+8, TASKBAR_PY+12, 1);
+                bx += bw + 4;
+            }
 
-			if (is_hovered) {
-				bg = (uint8_t)rit::Color::LightCyan;
-			} else if (is_active) {
-				bg = (uint8_t)rit::Color::Blue;
-				fg = (uint8_t)rit::Color::White;
-			} else if (!is_minimized) {
-				bg = (uint8_t)rit::Color::DarkGrey;
-				fg = (uint8_t)rit::Color::White;
-			}
+            /* Clock (right-aligned) */
+            int h=0,m=0,s=0; g_api->get_time(&h,&m,&s);
+            char tb[9];
+            tb[0]=(h/10)+'0'; tb[1]=(h%10)+'0'; tb[2]=':';
+            tb[3]=(m/10)+'0'; tb[4]=(m%10)+'0'; tb[5]=':';
+            tb[6]=(s/10)+'0'; tb[7]=(s%10)+'0'; tb[8]='\0';
+            g_api->fb_fill_rect(880, TASKBAR_PY+4, 136, 32, C_BTN_ACT);
+            g_api->fb_draw_string_px(tb, C_CLOCK, 0, 896, TASKBAR_PY+12, 1);
+        } else {
+            /* VGA fallback */
+            for (int x = 0; x < 128; x++) g_api->draw_char(' ', 15, 1, x, 47);
+            const char* start = "\x0F RitOS ";
+            for (int x=0; start[x]; x++) g_api->draw_char(start[x], 15, 3, 1+x, 47);
+            int h=0,m=0,s=0; g_api->get_time(&h,&m,&s);
+            char tb[9];
+            tb[0]=(h/10)+'0';tb[1]=(h%10)+'0';tb[2]=':';
+            tb[3]=(m/10)+'0';tb[4]=(m%10)+'0';tb[5]=':';
+            tb[6]=(s/10)+'0';tb[7]=(s%10)+'0';tb[8]='\0';
+            for(int x=0;tb[x];x++) g_api->draw_char(tb[x],10,1,118+x,47);
+        }
+    };
 
-			g_api->draw_char('[', fg, bg, current_x, 24);
-			for (int char_idx = 0; char_idx < lbl_len; char_idx++) {
-				g_api->draw_char(label[char_idx], fg, bg, current_x + 1 + char_idx, 24);
-			}
-			g_api->draw_char(']', fg, bg, current_x + 1 + lbl_len, 24);
+    mod.handle_click = [](void* inst, int mx, int my) {
+        Desktop_Interface* d = static_cast<Desktop_Interface*>(inst);
+        if (my < TASKBAR_ROW) return;
 
-			current_x += bw + 1; // 1 column space between buttons
-		}
+        int mx_px = mx * 8;
 
-		// 4. Draw digital clock
-		int h = 0, m = 0, s = 0;
-		g_api->get_time(&h, &m, &s);
-		char clock_buf[16];
-		clock_buf[0] = (h / 10) + '0';
-		clock_buf[1] = (h % 10) + '0';
-		clock_buf[2] = ':';
-		clock_buf[3] = (m / 10) + '0';
-		clock_buf[4] = (m % 10) + '0';
-		clock_buf[5] = ':';
-		clock_buf[6] = (s / 10) + '0';
-		clock_buf[7] = (s % 10) + '0';
-		clock_buf[8] = '\0';
-		for (int idx = 0; clock_buf[idx] != '\0'; idx++) {
-			g_api->draw_char(clock_buf[idx], (uint8_t)rit::Color::Black, bar_color, 71 + idx, 24);
-		}
-	};
+        /* Start button: pixel x 4..83 */
+        if (mx_px >= 4 && mx_px < 84) {
+            d->set_start_menu_open(!d->is_start_menu_open());
+            return;
+        }
 
-	mod.handle_click = [](void* inst, int mx, int my) {
-		Desktop_Interface* d = static_cast<Desktop_Interface*>(inst);
-		if (my != 24) return;
+        /* Window buttons starting at pixel 96 */
+        int bx = 96;
+        int wc = d->get_window_count();
+        for (int w = 0; w < wc; w++) {
+            if (!d->is_window_visible(w)) continue;
+            const char* lbl = short_label(d->get_window_title(w));
+            int llen=0; while(lbl[llen])llen++;
+            int bw = llen*8 + 16;
+            if (bx+bw > 870) break;
+            if (mx_px >= bx && mx_px < bx+bw) { d->toggle_window(w); return; }
+            bx += bw + 4;
+        }
+    };
 
-		// Start button click
-		if (mx >= 1 && mx <= 11) {
-			d->set_start_menu_open(!d->is_start_menu_open());
-			return;
-		}
-
-		// Check dynamic window buttons
-		int win_count = d->get_window_count();
-		int current_x = 13;
-		for (int w = 0; w < win_count; w++) {
-			if (!d->is_window_visible(w)) continue;
-
-			const char* title = d->get_window_title(w);
-			const char* label = get_short_label(title);
-			int lbl_len = 0;
-			while (label[lbl_len] != '\0') lbl_len++;
-			int bw = lbl_len + 2;
-
-			if (current_x + bw > 70) break;
-
-			if (mx >= current_x && mx < current_x + bw) {
-				d->toggle_window(w);
-				return;
-			}
-
-			current_x += bw + 1;
-		}
-	};
-
-	mod.handle_key = [](void* inst, char key) { (void)inst; (void)key; };
-
-	return &mod;
+    mod.handle_key = [](void* inst, char key) { (void)inst; (void)key; };
+    return &mod;
 }

@@ -4,8 +4,9 @@
 namespace ritos {
 
 void init() {
-	// Initialize memory heap
-	heap_init();
+	// Heap is already initialized by kernel_main before fb_init allocates
+	// the framebuffer back buffer; re-initializing here would reset the
+	// bump allocator and alias future allocations over that buffer.
 }
 
 void print_message(const char* msg) {

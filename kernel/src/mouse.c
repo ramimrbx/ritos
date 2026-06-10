@@ -26,8 +26,8 @@ static uint8_t mouse_read(void) {
 	return inb(0x60);
 }
 
-static int g_mouse_pixel_x = 320;
-static int g_mouse_pixel_y = 200;
+static int g_mouse_pixel_x = 512;
+static int g_mouse_pixel_y = 384;
 static uint8_t g_mouse_buttons = 0;
 
 void mouse_init(void) {
@@ -100,11 +100,11 @@ bool mouse_poll(MouseState* state) {
 		g_mouse_pixel_x += x_delta;
 		g_mouse_pixel_y -= y_delta;
 
-		// Clamp within pixel screen boundaries (640x400)
+		/* Clamp within 1024x768 pixel screen */
 		if (g_mouse_pixel_x < 0) g_mouse_pixel_x = 0;
-		if (g_mouse_pixel_x >= 640) g_mouse_pixel_x = 639;
+		if (g_mouse_pixel_x >= 1024) g_mouse_pixel_x = 1023;
 		if (g_mouse_pixel_y < 0) g_mouse_pixel_y = 0;
-		if (g_mouse_pixel_y >= 400) g_mouse_pixel_y = 399;
+		if (g_mouse_pixel_y >= 768) g_mouse_pixel_y = 767;
 
 		// Scale down to character cells (each cell is 8x16 pixels)
 		state->x = g_mouse_pixel_x / 8;

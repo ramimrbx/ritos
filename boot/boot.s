@@ -5,8 +5,17 @@ Declare both Multiboot 1 and Multiboot 2 headers for dual BIOS and UEFI bootload
 .align 8
 multiboot1_start:
 .long 0x1BADB002                  /* Magic */
-.long 0x00000003                  /* Flags (Align modules, memory info) */
-.long -(0x1BADB002 + 0x00000003)  /* Checksum */
+.long 0x00000007                  /* Flags: ALIGN | MEMINFO | VIDEO */
+.long -(0x1BADB002 + 0x00000007)  /* Checksum */
+.long 0                           /* header_addr  (ignored when bit16 is 0) */
+.long 0                           /* load_addr */
+.long 0                           /* load_end_addr */
+.long 0                           /* bss_end_addr */
+.long 0                           /* entry_addr */
+.long 0                           /* mode_type: 0 = linear framebuffer */
+.long 1024                        /* width */
+.long 768                         /* height */
+.long 32                          /* depth (bpp) */
 
 .align 8
 multiboot2_start:
@@ -48,11 +57,18 @@ _start:
 	/* Set up our stack. */
 	mov $stack_top, %esp
 
+	/* Save Multiboot registers in callee-saved regs before any calls */
+	mov %eax, %esi   /* magic number */
+	mov %ebx, %edi   /* multiboot info pointer */
+
 	/* Call the global constructors (C++ support). */
 	call call_global_constructors
 
-	/* Transfer control to the main kernel. */
+	/* Transfer control to the main kernel, passing saved Multiboot values. */
+	push %edi    /* multiboot info pointer (arg2) */
+	push %esi    /* magic number (arg1) */
 	call kernel_main
+	add $8, %esp
 
 	/*
 	If the system has nothing more to do, put the computer into an

@@ -57,6 +57,25 @@ public:
 	static void enable_double_buffer(bool enable);
 	static void flush();
 
+	// Framebuffer pixel API (no-ops when fb not available)
+	static void fb_fill_rect(int x, int y, int w, int h, uint32_t argb);
+	static void fb_fill_rect_blend(int x, int y, int w, int h, uint32_t argb);
+	static void fb_blit_argb(const uint32_t* pixels, int x, int y, int w, int h);
+	static void fb_draw_string_px(const char* text, uint32_t fg, uint32_t bg,
+	                              int x, int y, int transparent_bg);
+	static void fb_fill_grad_v(int x, int y, int w, int h,
+	                           uint32_t top, uint32_t bot);
+	static void fb_fill_grad_h(int x, int y, int w, int h,
+	                           uint32_t left, uint32_t right);
+	static void fb_fill_rounded_rect(int x, int y, int w, int h, int r,
+	                                 uint32_t argb);
+	static void fb_fill_circle(int cx, int cy, int r, uint32_t argb);
+	static void fb_draw_hline_px(int x, int y, int w, uint32_t argb);
+	static void fb_flush_px();
+	static int  fb_get_width();
+	static int  fb_get_height();
+	static int  fb_is_avail();
+
 	// Get the OS API function table
 	static const RitOS_API* get_api_table();
 
