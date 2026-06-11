@@ -1,7 +1,7 @@
 #include <kernel/terminal.h>
 #include <kernel/memory.h>
-#include <kernel/fb.h>
-#include <kernel/io.h>
+#include <kernel/framebuffer.h>
+#include <kernel/input_output.h>
 #include <stdint.h>
 
 /* Serial port debug helpers (COM1 = 0x3F8) */

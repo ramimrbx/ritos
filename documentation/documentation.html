@@ -1,0 +1,1992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RitOS - The Sacred Codex & System Architecture</title>
+  <!-- Google Fonts: Outfit for sleek modern headers, JetBrains Mono for tech, Cinzel for mythic headers -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ==========================================
+       1. THEME VARIABLES & BASE
+       ========================================== */
+    :root {
+      --transition-speed: 0.4s;
+      --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-myth-header: 'Cinzel', serif;
+    }
+
+    /* Technical Blueprint Theme (Default) */
+    body.technical-mode {
+      --bg-main: #060a12;
+      --bg-sidebar: rgba(10, 17, 30, 0.85);
+      --bg-card: rgba(15, 23, 42, 0.7);
+      --bg-code: #020617;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent-primary: #00f0ff;
+      --accent-secondary: #8a2be2;
+      --accent-glow: rgba(0, 240, 255, 0.15);
+      --accent-border: rgba(0, 240, 255, 0.2);
+      --accent-text: #38bdf8;
+      --card-border: rgba(51, 65, 85, 0.5);
+      --scrollbar-thumb: #1e293b;
+      --btn-bg: rgba(0, 240, 255, 0.1);
+      --btn-hover: rgba(0, 240, 255, 0.25);
+    }
+
+    /* Ancient Mythology Theme */
+    body.mythology-mode {
+      --bg-main: #0a0907;
+      --bg-sidebar: rgba(20, 18, 15, 0.9);
+      --bg-card: rgba(28, 24, 20, 0.75);
+      --bg-code: #050403;
+      --text-main: #f4eae0;
+      --text-muted: #bdae9c;
+      --accent-primary: #d4af37; /* Warm Gold */
+      --accent-secondary: #c53030; /* Imperial Crimson */
+      --accent-glow: rgba(212, 175, 55, 0.15);
+      --accent-border: rgba(212, 175, 55, 0.25);
+      --accent-text: #e5c158;
+      --card-border: rgba(85, 68, 51, 0.4);
+      --scrollbar-thumb: #2d261e;
+      --btn-bg: rgba(212, 175, 55, 0.1);
+      --btn-hover: rgba(212, 175, 55, 0.25);
+    }
+
+    /* Base Reset */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      overflow-x: hidden;
+      transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+    }
+
+    /* Conditional content display by mode */
+    body.technical-mode .mode-myth {
+      display: none !important;
+    }
+    body.mythology-mode .mode-tech {
+      display: none !important;
+    }
+
+    /* Font swapping by mode */
+    body.mythology-mode h1,
+    body.mythology-mode h2,
+    body.mythology-mode h3,
+    body.mythology-mode .nav-title {
+      font-family: var(--font-myth-header);
+      letter-spacing: 0.05em;
+    }
+
+    /* Background grids & decorative orbs */
+    .bg-grid {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: -1;
+      opacity: 0.3;
+      transition: background var(--transition-speed) ease;
+    }
+    body.technical-mode .bg-grid {
+      background-image: radial-gradient(rgba(0, 240, 255, 0.08) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    body.mythology-mode .bg-grid {
+      background-image: radial-gradient(rgba(212, 175, 55, 0.06) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+
+    .glow-orb {
+      position: fixed;
+      width: 50vw;
+      height: 50vw;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: -2;
+      opacity: 0.45;
+      transition: background var(--transition-speed) ease;
+    }
+    .orb-1 {
+      top: -15%;
+      left: -10%;
+    }
+    .orb-2 {
+      bottom: -15%;
+      right: -10%;
+    }
+    body.technical-mode .orb-1 { background: radial-gradient(circle, rgba(0, 240, 255, 0.08) 0%, transparent 70%); }
+    body.technical-mode .orb-2 { background: radial-gradient(circle, rgba(138, 43, 226, 0.06) 0%, transparent 70%); }
+    body.mythology-mode .orb-1 { background: radial-gradient(circle, rgba(212, 175, 55, 0.06) 0%, transparent 70%); }
+    body.mythology-mode .orb-2 { background: radial-gradient(circle, rgba(197, 48, 48, 0.04) 0%, transparent 70%); }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-main);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-primary);
+    }
+
+    /* ==========================================
+       2. LAYOUT: SIDEBAR, HEADER, MAIN
+       ========================================== */
+    .app-container {
+      display: flex;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* Glassmorphic Sidebar */
+    .sidebar {
+      width: 300px;
+      background: var(--bg-sidebar);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-right: 1px solid var(--accent-border);
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem;
+      transition: transform 0.3s ease, background var(--transition-speed) ease, border-color var(--transition-speed) ease;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--accent-border);
+    }
+
+    .logo-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-svg {
+      animation: spin 15s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    .nav-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--text-main);
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .nav-subtitle {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--accent-text);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-top: 2px;
+    }
+
+    .nav-menu {
+      list-style: none;
+      margin-top: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+
+    .nav-item a {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 0.95rem;
+      border: 1px solid transparent;
+      transition: all 0.25s ease;
+    }
+
+    .nav-item a:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.03);
+      border-color: rgba(255, 255, 255, 0.05);
+      padding-left: 1.25rem;
+    }
+
+    .nav-item.active a {
+      color: var(--text-main);
+      background: var(--btn-bg);
+      border-color: var(--accent-border);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .sidebar-footer {
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--accent-border);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
+      font-family: var(--font-mono);
+    }
+
+    /* Main Content Area */
+    .main-content {
+      flex-grow: 1;
+      margin-left: 300px;
+      padding: 2.5rem;
+      max-width: 1200px;
+      width: calc(100% - 300px);
+      transition: margin 0.3s ease, width 0.3s ease;
+    }
+
+    /* Top Floating Header Controls */
+    .top-controls {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 90;
+      padding: 0.75rem 0;
+    }
+
+    .glass-btn {
+      background: var(--btn-bg);
+      border: 1px solid var(--accent-border);
+      color: var(--text-main);
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass-btn:hover {
+      background: var(--btn-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px var(--accent-glow);
+      border-color: var(--accent-primary);
+    }
+
+    .glass-btn:active {
+      transform: translateY(0);
+    }
+
+    .mode-badge {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      background: var(--accent-secondary);
+      color: #fff;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    /* ==========================================
+       3. REUSABLE COMPONENTS & UTILITIES
+       ========================================== */
+    .doc-section {
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 2.5rem;
+      margin-bottom: 3rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      transition: transform 0.3s ease, border-color var(--transition-speed) ease, box-shadow 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .doc-section::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    }
+
+    .doc-section:hover {
+      border-color: var(--accent-primary);
+      box-shadow: 0 12px 40px var(--accent-glow);
+    }
+
+    h1.hero-title {
+      font-size: 3.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--text-main) 30%, var(--accent-primary) 70%, var(--accent-secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+      line-height: 1.2;
+    }
+
+    h2.section-title {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.75rem;
+    }
+
+    h2.section-title svg {
+      color: var(--accent-primary);
+    }
+
+    h3.block-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--accent-primary);
+      margin: 1.75rem 0 1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    p {
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+      font-size: 1.05rem;
+      font-weight: 400;
+    }
+
+    strong {
+      color: var(--text-main);
+    }
+
+    .highlight-box {
+      background: rgba(255, 255, 255, 0.02);
+      border-left: 4px solid var(--accent-primary);
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 0 12px 12px 0;
+    }
+
+    .highlight-box p {
+      margin-bottom: 0;
+      font-style: italic;
+    }
+
+    /* Grid Layout Utility */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+      gap: 2rem;
+    }
+
+    /* Code Blocks */
+    .code-container {
+      position: relative;
+      margin: 1.5rem 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+    }
+
+    .code-header {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 0.5rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: all 0.2s ease;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+      background: var(--btn-bg);
+    }
+
+    pre {
+      background: var(--bg-code);
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: #a5b4fc;
+    }
+
+    /* ==========================================
+       4. INTERACTIVE WIDGET: DIRECTORY TREE
+       ========================================== */
+    .tree-widget {
+      display: flex;
+      gap: 2rem;
+      height: 480px;
+      margin-top: 1.5rem;
+    }
+
+    .tree-view {
+      flex: 1;
+      border: 1px solid var(--card-border);
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 1.25rem;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+    }
+
+    .tree-view ul {
+      list-style: none;
+      padding-left: 1.25rem;
+    }
+
+    .tree-view > ul {
+      padding-left: 0;
+    }
+
+    .tree-node {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      padding: 0.35rem 0.5rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .tree-node:hover {
+      background: rgba(255,255,255,0.03);
+      color: var(--accent-primary);
+    }
+
+    .tree-node.active-node {
+      background: var(--btn-bg);
+      color: var(--accent-primary);
+      border-left: 3px solid var(--accent-primary);
+      padding-left: 0.4rem;
+    }
+
+    .tree-icon {
+      font-size: 1rem;
+      width: 18px;
+      display: inline-block;
+      text-align: center;
+    }
+
+    .tree-info-panel {
+      flex: 1;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.01);
+      border-radius: 12px;
+      padding: 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .info-header {
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .info-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .info-meta {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .info-body {
+      flex-grow: 1;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    /* ==========================================
+       5. INTERACTIVE WIDGET: HEAP SIMULATOR
+       ========================================== */
+    .allocator-simulator {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .sim-bar-container {
+      margin-bottom: 1.5rem;
+    }
+
+    .sim-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .sim-memory-bar {
+      display: flex;
+      height: 48px;
+      width: 100%;
+      background: #111;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #222;
+      box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+    }
+
+    .sim-block {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: #fff;
+      font-weight: bold;
+      transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+      position: relative;
+      cursor: help;
+      border-right: 1px solid rgba(0,0,0,0.2);
+    }
+
+    .sim-block.used {
+      background: linear-gradient(135deg, #6d28d9 0%, #4c1d95 100%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+
+    body.mythology-mode .sim-block.used {
+      background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+    }
+
+    .sim-block.free {
+      background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+      color: var(--text-muted);
+    }
+
+    .sim-block:last-child {
+      border-right: none;
+    }
+
+    .block-overlay-btn {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(239, 68, 68, 0.8);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      cursor: pointer;
+      font-weight: bold;
+      transition: opacity 0.2s ease;
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      border: none;
+    }
+
+    .sim-block.used:hover .block-overlay-btn {
+      opacity: 1;
+    }
+
+    .sim-block-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 90%;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .sim-controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .sim-input-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .sim-input {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      width: 70px;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .sim-input:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 6px var(--accent-glow);
+    }
+
+    .sim-log-panel {
+      border: 1px solid var(--card-border);
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      padding: 1rem;
+      height: 150px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+
+    .sim-log-row {
+      margin-bottom: 0.35rem;
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .sim-log-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .log-ts {
+      color: var(--text-muted);
+    }
+
+    .log-action-alloc {
+      color: #34d399;
+    }
+    .log-action-free {
+      color: #f87171;
+    }
+    .log-action-coalesce {
+      color: #fbbf24;
+    }
+    .log-action-error {
+      color: #ef4444;
+      font-weight: bold;
+    }
+
+    /* ==========================================
+       6. INTERACTIVE WIDGET: API TABLE
+       ========================================== */
+    .api-explorer {
+      margin-top: 1.5rem;
+    }
+
+    .api-filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .search-input-wrapper {
+      position: relative;
+      flex-grow: 1;
+      max-width: 450px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.65rem 1rem;
+      padding-left: 2.25rem;
+      border-radius: 8px;
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+
+    .search-icon-svg {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .tag-btn {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: all 0.25s ease;
+    }
+
+    .tag-btn:hover, .tag-btn.active-tag {
+      border-color: var(--accent-primary);
+      color: var(--text-main);
+      background: var(--btn-bg);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .api-cards-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+      max-height: 500px;
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .api-card {
+      background: rgba(0,0,0,0.15);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: all 0.25s ease;
+    }
+
+    .api-card:hover {
+      border-color: var(--accent-primary);
+      background: rgba(255,255,255,0.01);
+      transform: translateX(4px);
+    }
+
+    .api-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding-bottom: 0.5rem;
+    }
+
+    .api-func-name {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--accent-primary);
+      font-size: 1.05rem;
+    }
+
+    .api-func-sig {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #a5b4fc;
+      margin: 0.25rem 0;
+      word-break: break-all;
+    }
+
+    .api-cat-tag {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      background: rgba(255,255,255,0.05);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: var(--text-muted);
+    }
+
+    .api-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-bottom: 0;
+    }
+
+    /* ==========================================
+       7. MOBILE STYLING & BURGER
+       ========================================== */
+    .menu-toggle {
+      display: none;
+      position: fixed;
+      top: 1rem;
+      left: 1rem;
+      z-index: 110;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--accent-border);
+      padding: 0.5rem;
+      border-radius: 6px;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    @media (max-width: 992px) {
+      .menu-toggle {
+        display: block;
+      }
+      .sidebar {
+        transform: translateX(-100%);
+      }
+      .sidebar.menu-open {
+        transform: translateX(0);
+      }
+      .main-content {
+        margin-left: 0;
+        width: 100%;
+        padding: 1.5rem;
+      }
+      .tree-widget {
+        flex-direction: column;
+        height: auto;
+      }
+      .tree-view, .tree-info-panel {
+        height: 250px;
+      }
+    }
+  </style>
+</head>
+<body class="technical-mode">
+  
+  <div class="bg-grid"></div>
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
+
+  <!-- Mobile Hamburger Menu Button -->
+  <button class="menu-toggle" id="menuToggleBtn">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </button>
+
+  <div class="app-container">
+    
+    <!-- ==========================================
+         SIDEBAR NAVIGATION
+         ========================================== -->
+    <aside class="sidebar" id="sidebarContainer">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <svg class="logo-svg" width="48" height="48" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="var(--accent-border)" stroke-width="5" />
+            <path d="M50 20 L80 70 L20 70 Z" fill="none" stroke="var(--accent-primary)" stroke-width="5" stroke-linejoin="round" />
+            <circle cx="50" cy="54" r="10" fill="var(--accent-secondary)" />
+          </svg>
+        </div>
+        <a href="#hero" class="nav-title">
+          RitOS
+          <span class="nav-subtitle">Protected Mode</span>
+        </a>
+      </div>
+
+      <ul class="nav-menu">
+        <li class="nav-item active"><a href="#hero">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          <span class="mode-tech">System Overview</span>
+          <span class="mode-myth">The Divine Codex</span>
+        </a></li>
+        <li class="nav-item"><a href="#philosophy">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z"></path><path d="M12 6v6l4 2"></path></svg>
+          <span class="mode-tech">Lore & Concept</span>
+          <span class="mode-myth">The Pantheon lore</span>
+        </a></li>
+        <li class="nav-item"><a href="#tree">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          <span class="mode-tech">Source Tree Map</span>
+          <span class="mode-myth">Cosmic Domains</span>
+        </a></li>
+        <li class="nav-item"><a href="#heap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          <span class="mode-tech">Memory Heap Sim</span>
+          <span class="mode-myth">Gaea's Garden Sim</span>
+        </a></li>
+        <li class="nav-item"><a href="#rbx">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+          <span class="mode-tech">RBX Executable Format</span>
+          <span class="mode-myth">The Sealed Vessels</span>
+        </a></li>
+        <li class="nav-item"><a href="#api">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+          <span class="mode-tech">API Table Reference</span>
+          <span class="mode-myth">Sacred Invocations</span>
+        </a></li>
+        <li class="nav-item"><a href="#setup">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          <span class="mode-tech">Build & Run</span>
+          <span class="mode-myth">Rites of Summoning</span>
+        </a></li>
+      </ul>
+
+      <div class="sidebar-footer">
+        RitOS v2.0.0
+      </div>
+    </aside>
+
+    <!-- ==========================================
+         MAIN CONTENT
+         ========================================== -->
+    <main class="main-content">
+      
+      <!-- Top controls & toggler -->
+      <div class="top-controls">
+        <button class="glass-btn" id="modeToggleBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+          </svg>
+          Style: 
+          <span class="mode-tech">Technical Blueprint ⚙️</span>
+          <span class="mode-myth">Ancient Mythology 📜</span>
+        </button>
+      </div>
+
+      <!-- ==========================================
+           SECTION 1: HERO / SYSTEM OVERVIEW
+           ========================================== -->
+      <section class="doc-section" id="hero">
+        <h1 class="hero-title">RitOS</h1>
+        
+        <div class="mode-tech">
+          <p class="mode-badge">Core Spec</p>
+          <p><strong>RitOS</strong> is a modern C++ freestanding operating system targeting the x86 32-bit architecture. Executing in Protected Mode, the system circumvents bios constraints by executing its kernel directly on bare hardware, communicating via a custom interface called the <strong>RitOS_API table</strong>.</p>
+          <p>It integrates a linear VGA framebuffer renderer, custom mouse and keyboard drivers, a Virtual File System (VFS), and a modular binary layout loaded dynamically via the custom <strong>RBX binary structure</strong>.</p>
+        </div>
+        
+        <div class="mode-myth">
+          <p class="mode-badge">Mythic Scroll</p>
+          <p><strong>RitOS</strong> is the holy codex that maps the digital cosmos. Forged in the void of bare metal, it contains the sacred rituals of execution, carving order out of raw transistors and creating a divine hierarchy that separates the gods of <strong>Kernel Land (Ring 0)</strong> from the mortal programs of <strong>User Land (Ring 3)</strong>.</p>
+          <p>It binds CPU registers, VGA framebuffer beams, and raw files into a single unified pantheon, carrying messages through shortcuts and scripts to project a visual desktop workspace.</p>
+        </div>
+
+        <div class="grid-2">
+          <div class="highlight-box">
+            <h4 style="font-weight: 700; color: var(--accent-primary); margin-bottom: 0.5rem;">
+              <span class="mode-tech">Runtime Specifications</span>
+              <span class="mode-myth">Divine Attributes</span>
+            </h4>
+            <ul style="list-style: none; padding-left: 0; color: var(--text-muted); font-size: 0.95rem;">
+              <li><strong>Target Platform:</strong> x86 (IA-32 Protected Mode)</li>
+              <li><strong>Heap Memory Limit:</strong> 64 Megabytes</li>
+              <li><strong>Display Mode:</strong> VGA Framebuffer (1024x768 / 800x600 32bpp)</li>
+              <li><strong>Fallback:</strong> VGA Text Mode (80x25 characters, 16 colors)</li>
+              <li><strong>Executable Format:</strong> Native RBX (Magic: <code>RBX2</code>)</li>
+            </ul>
+          </div>
+          
+          <div class="highlight-box" style="border-left-color: var(--accent-secondary);">
+            <h4 style="font-weight: 700; color: var(--accent-secondary); margin-bottom: 0.5rem;">
+              <span class="mode-tech">Core Features</span>
+              <span class="mode-myth">Sacred Virtues</span>
+            </h4>
+            <ul style="list-style: none; padding-left: 0; color: var(--text-muted); font-size: 0.95rem;">
+              <li>Virtual File System (VFS) with CRUD APIs</li>
+              <li>Dynamic binary loading & icon extraction</li>
+              <li>Double-buffered high-performance rendering</li>
+              <li>Coalescing free-list memory manager</li>
+              <li>Desktop GUI with windows, keyboard tabs & start menu</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           SECTION 2: LORE & CONCEPTS
+           ========================================== -->
+      <section class="doc-section" id="philosophy">
+        <h2 class="section-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <span class="mode-tech">Architectural Design & Layers</span>
+          <span class="mode-myth">The Pantheon of the Core</span>
+        </h2>
+        
+        <div class="mode-tech">
+          <p>The system splits portable logic from hardware-specific ports. This ensures that the primary GUI libraries, system apps, and VFS implementations can compile on any platform (x86, ARM, or embedded) without modifying a single line of application code.</p>
+          
+          <h3 class="block-title">Privilege Separation (Ring 0 & Ring 3)</h3>
+          <p>RitOS preserves the classic hardware security model of the x86 CPU. The kernel executes inside Ring 0 with full access to ports (<code>outb</code>/<code>inb</code>), interrupt tables, and memory page directories. The userland apps and desktop shell reside in Ring 3. Since they are freestanding programs, they communicate with Ring 0 via standard pointers to the <code>RitOS_API</code> table.</p>
+        </div>
+
+        <div class="mode-myth">
+          <p>Every element of RitOS corresponds to a deity or sacred concept that maintains stability. The digital realm is organized into the Celestial Realm (Ring 0) where the kernel rules, and the Terrestrial Plain (Ring 3) where applications live in constrained isolation, communicating with the heavens through the <strong>Sacred Covenant (The API Table)</strong>.</p>
+          
+          <div class="grid-2" style="margin-top: 1.5rem;">
+            <div>
+              <h3 class="block-title">Gaea (The Heap Allocator)</h3>
+              <p>The goddess of earth and memory. Gaea controls physical page frames, splitting herself to yield memory to mortal programs, and dissolving boundaries to coalesce adjacent free space once programs return to dust.</p>
+              
+              <h3 class="block-title">Chronos (VGA & Framebuffer)</h3>
+              <p>The god of light, pixels, and time. Chronos translates abstract memory coordinates into beams of light. He executes the VESA BIOS Extensions, crafting gradients, rounded rects, and composting desktop layers.</p>
+            </div>
+            <div>
+              <h3 class="block-title">Hermes (VFS & Loader)</h3>
+              <p>The swift messenger. Hermes delivers scrolls between directories, decodes the 64-byte Header Seals of RBX vessels, and redirects execution flow to launch applications.</p>
+              
+              <h3 class="block-title">Aura (The Desktop Compositor)</h3>
+              <p>The goddess of wind and window focus. Aura manages window hierarchies, listens to mouse drag inputs, handles key focus shifting (Tab cycling), and minimized windows.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           SECTION 3: DIRECTORY SOURCE TREE
+           ========================================== -->
+      <section class="doc-section" id="tree">
+        <h2 class="section-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          <span class="mode-tech">Interactive Codebase Navigation</span>
+          <span class="mode-myth">Sacred Domains & Folders</span>
+        </h2>
+        
+        <p class="mode-tech">Click on folders in the tree view to inspect the purpose of each directory in the RitOS source code. Everything under <code>arch/</code> is machine-dependent, while <code>kernel/</code> and <code>user/</code> are fully platform-independent.</p>
+        <p class="mode-myth">Explore the cosmic domains of RitOS. Select a node in the tree representation to understand which digital deity governs that path, and what sacred scripts reside in its vaults.</p>
+
+        <div class="tree-widget">
+          <div class="tree-view">
+            <ul>
+              <li>
+                <div class="tree-node active-node" data-path="root">
+                  <span class="tree-icon">📂</span> ritos/ (Root)
+                </div>
+                <ul>
+                  <li>
+                    <div class="tree-node" data-path="arch">
+                      <span class="tree-icon">📂</span> arch/
+                    </div>
+                    <ul>
+                      <li>
+                        <div class="tree-node" data-path="arch-x86">
+                          <span class="tree-icon">📂</span> x86/
+                        </div>
+                        <ul>
+                          <li><div class="tree-node" data-path="arch-x86-boot"><span class="tree-icon">📂</span> boot/</div></li>
+                          <li><div class="tree-node" data-path="arch-x86-drivers"><span class="tree-icon">📂</span> drivers/</div></li>
+                          <li><div class="tree-node" data-path="arch-x86-inc"><span class="tree-icon">📂</span> include/</div></li>
+                        </ul>
+                      </li>
+                    </ul>
+                  </li>
+                  <li>
+                    <div class="tree-node" data-path="kernel">
+                      <span class="tree-icon">📂</span> kernel/
+                    </div>
+                    <ul>
+                      <li><div class="tree-node" data-path="kernel-core"><span class="tree-icon">📂</span> core/</div></li>
+                      <li><div class="tree-node" data-path="kernel-drivers"><span class="tree-icon">📂</span> drivers/</div></li>
+                      <li><div class="tree-node" data-path="kernel-lib"><span class="tree-icon">📂</span> lib/</div></li>
+                      <li><div class="tree-node" data-path="kernel-inc"><span class="tree-icon">📂</span> include/</div></li>
+                    </ul>
+                  </li>
+                  <li>
+                    <div class="tree-node" data-path="user">
+                      <span class="tree-icon">📂</span> user/
+                    </div>
+                    <ul>
+                      <li><div class="tree-node" data-path="user-api"><span class="tree-icon">📂</span> api/</div></li>
+                      <li><div class="tree-node" data-path="user-runtime"><span class="tree-icon">📂</span> runtime/</div></li>
+                      <li>
+                        <div class="tree-node" data-path="user-lib">
+                          <span class="tree-icon">📂</span> lib/
+                        </div>
+                        <ul>
+                          <li><div class="tree-node" data-path="user-lib-rit"><span class="tree-icon">📂</span> rit/</div></li>
+                          <li><div class="tree-node" data-path="user-lib-gui"><span class="tree-icon">📂</span> gui/</div></li>
+                        </ul>
+                      </li>
+                      <li><div class="tree-node" data-path="user-shell"><span class="tree-icon">📂</span> shell/</div></li>
+                      <li><div class="tree-node" data-path="user-apps"><span class="tree-icon">📂</span> apps/</div></li>
+                    </ul>
+                  </li>
+                  <li><div class="tree-node" data-path="assets"><span class="tree-icon">📂</span> assets/</div></li>
+                  <li><div class="tree-node" data-path="tools"><span class="tree-icon">📂</span> tools/</div></li>
+                  <li><div class="tree-node" data-path="readme"><span class="tree-icon">📄</span> README.md</div></li>
+                  <li><div class="tree-node" data-path="makefile"><span class="tree-icon">📄</span> Makefile</div></li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+
+          <div class="tree-info-panel" id="treeInfoPanel">
+            <div class="info-header">
+              <div class="info-title" id="infoTitle">ritos/ (Root)</div>
+              <div class="info-meta" id="infoMeta">Project Root Directory</div>
+            </div>
+            <div class="info-body" id="infoBody">
+              Select a folder or file on the left to display structural specs and mythological significance.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           SECTION 4: HEAP MEMORY SIMULATOR
+           ========================================== -->
+      <section class="doc-section" id="heap">
+        <h2 class="section-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          <span class="mode-tech">Heap Memory Manager Simulator</span>
+          <span class="mode-myth">Gaea's Garden: Memory allocation Simulator</span>
+        </h2>
+        
+        <p class="mode-tech">This simulator runs a Javascript model of the first-fit heap allocator implemented in <code>kernel/core/memory.c</code>. Every allocation is preceded by a block header specifying its magic status (<code>0xA110C8ED</code> for Used, <code>0xF7EEB10C</code> for Free) and payload size. Freeing a block automatically merges (coalesces) adjacent free blocks to mitigate fragmentation.</p>
+        <p class="mode-myth">Observe Gaea's garden of memory bytes. Summon new segments of life (Used Blocks) by invoking allocations. Dispel segments (Free Blocks) to let memory merge back into Gaea's essence. Hover over used segments to call kfree.</p>
+
+        <div class="allocator-simulator">
+          <div class="sim-bar-container">
+            <div class="sim-label-row">
+              <span>Heap Address Space (0 to 512 Bytes)</span>
+              <span id="heapUsageIndicator">Used: 0B / 512B</span>
+            </div>
+            <div class="sim-memory-bar" id="memoryBar">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <div class="sim-controls-row">
+            <div class="sim-input-group">
+              <label for="allocSizeInput">Size (Bytes):</label>
+              <input type="number" id="allocSizeInput" class="sim-input" value="32" min="1" max="256">
+            </div>
+            <button class="glass-btn" onclick="simKmalloc()">
+              <span>⚡ kmalloc()</span>
+            </button>
+            <button class="glass-btn" onclick="simKmallocRandom()">
+              <span>🎲 Random Size</span>
+            </button>
+            <button class="glass-btn" onclick="simReset()" style="border-color: rgba(239, 68, 68, 0.4);">
+              <span>🔄 Reset Heap</span>
+            </button>
+          </div>
+
+          <div class="sim-log-panel" id="simLogPanel">
+            <!-- Logs updated via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           SECTION 5: RBX FORMAT & VFS SPEC
+           ========================================== -->
+      <section class="doc-section" id="rbx">
+        <h2 class="section-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+          <span class="mode-tech">RBX Binary Format & VFS specification</span>
+          <span class="mode-myth">The Sealed RBX Vessels & scrolls of VFS</span>
+        </h2>
+        
+        <div class="mode-tech">
+          <p>The <strong>RBX format</strong> is RitOS's proprietary executable layout. The system does not boot or link ELF directly at runtime; instead, a host compilation tool <code>tools/elf2rbx.cpp</code> converts compiled ELFs into RBX binaries.</p>
+          <p>The file starts with a packed 64-byte header. Below is the structural layout of this header:</p>
+        </div>
+
+        <div class="mode-myth">
+          <p>Programs are transported across RitOS inside sealed capsules called <strong>RBX Vessels</strong>. Every vessel is guarded by a 64-byte runic seal specifying execution requirements and carrying the program's unique symbol glyph (an embedded 32x32 icon) so that compositors can paint them on the desktop plain.</p>
+        </div>
+
+        <div class="code-container">
+          <div class="code-header">
+            <span>user/lib/rit/include/rit/rbx_format.h</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code>typedef struct rbx_header {
+	char     magic[4];      /* "RBX2" */
+	uint16_t version;       /* format version (2) */
+	uint16_t arch;          /* target CPU architecture: 1=x86, 2=x64, 3=ARM32, 4=ARM64 */
+	uint16_t type;          /* execution type: 1=Module, 2=Standalone program */
+	uint16_t header_size;   /* size of header (64 bytes) */
+	uint32_t flags;         /* reserved for alignment */
+	uint32_t load_addr;     /* absolute memory location to place binary */
+	uint32_t entry_point;   /* jump address to start execution */
+	uint32_t code_size;     /* length in bytes of binary content */
+	uint32_t bss_size;      /* size of zeroed segment following binary */
+	uint32_t checksum;      /* sum byte value of code segment */
+	uint32_t icon_offset;   /* file position of embedded 32x32 ARGB icon */
+	uint32_t icon_size;     /* bytes of icon (4096 bytes or 0) */
+	char     name[20];      /* NUL-terminated app display name */
+} __attribute__((packed)) rbx_header_t;</code></pre>
+        </div>
+
+        <h3 class="block-title">
+          <span class="mode-tech">VFS & Virtual File Shortcuts</span>
+          <span class="mode-myth">Hermes' VFS scrolls & Shortcut links</span>
+        </h3>
+        
+        <div class="mode-tech">
+          <p>The Virtual File System is loaded directly into RAM at startup via embedded binary structures in the kernel. Individual files have a size limit of 64KB (<code>content[65536]</code>) and the directory hierarchy is flat but supports virtual path separators (like <code>/sys/</code> or <code>/desktop/</code>).</p>
+          <p><strong>Shortcuts (<code>.stct</code> files)</strong> are simple text files storing the absolute path to their destination binary (e.g., <code>/sys/calculator.rbx</code>). The desktop window explorer maps these paths to render the shortcut icons dynamically by loading the target RBX's embedded icon, separating visual shortcuts from actual program resources.</p>
+        </div>
+
+        <div class="mode-myth">
+          <p>VFS represents the scrolls of Hermes, storing files in RAM caches of up to 64 kilobytes. Rather than copying programs across the screen, the desktop uses <strong>Shortcut links (<code>.stct</code>)</strong>. These links act as portal points: when opened, they direct Hermes to fetch the target vessel from the <code>/sys</code> vaults, extracting its icon automatically.</p>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           SECTION 6: API REFERENCE
+           ========================================== -->
+      <section class="doc-section" id="api">
+        <h2 class="section-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon></svg>
+          <span class="mode-tech">RitOS_API Table Reference</span>
+          <span class="mode-myth">Codex of Sacred Invocations</span>
+        </h2>
+        
+        <p class="mode-tech">This filterable catalog displays the API function tables exported by the kernel to userland programs at address entry points. Applications call these function pointers to print text, load files, read keyboard states, or draw to the linear framebuffer.</p>
+        <p class="mode-myth">Below is the complete codex of invocations. Filter by clicking categories or searching by name to find the spells of printing, drawing, and summoning files.</p>
+
+        <div class="api-explorer">
+          <div class="api-filter-row">
+            <div class="search-input-wrapper">
+              <svg class="search-icon-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="apiSearch" class="search-input" placeholder="Search API functions..." onkeyup="filterAPIs()">
+            </div>
+            
+            <div class="tag-container" id="apiTagContainer">
+              <button class="tag-btn active-tag" onclick="selectApiTag('all')">All</button>
+              <button class="tag-btn" onclick="selectApiTag('graphics')">Graphics 🎨</button>
+              <button class="tag-btn" onclick="selectApiTag('vfs')">VFS 📂</button>
+              <button class="tag-btn" onclick="selectApiTag('memory')">Memory 🧠</button>
+              <button class="tag-btn" onclick="selectApiTag('input')">Input 🖱️</button>
+              <button class="tag-btn" onclick="selectApiTag('system')">System & Power ⚡</button>
+            </div>
+          </div>
+
+          <div class="api-cards-grid" id="apiCardsGrid">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==========================================
+           SECTION 7: BUILD & RUN
+           ========================================== -->
+      <section class="doc-section" id="setup">
+        <h2 class="section-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          <span class="mode-tech">Building & Executing the System</span>
+          <span class="mode-myth">The Rites of Summoning</span>
+        </h2>
+        
+        <p class="mode-tech">To compile the kernel and build a bootable ISO, you must install the x86 cross-compiler tools. Run the commands below in your host Linux (Ubuntu/Debian) terminal.</p>
+        <p class="mode-myth">To summon the RitOS world, you must compile the runic equations using the tools of the host environment. Execute the commands below to compile and boot the ISO within the virtual mirror (QEMU).</p>
+
+        <h3 class="block-title">1. Install Host Dependencies</h3>
+        <div class="code-container">
+          <div class="code-header">
+            <span>Host Terminal</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code>sudo apt update && sudo apt install -y \
+    build-essential \
+    gcc-multilib \
+    g++-multilib \
+    grub-pc-bin \
+    xorriso \
+    mtools \
+    qemu-system-x86</code></pre>
+        </div>
+
+        <h3 class="block-title">2. Compile using Make or Script</h3>
+        <p class="mode-tech">The build script clears previous builds, links fonts and assets, packages applications into RBX format, and creates a GRUB boot ISO at <code>build/ritos.iso</code>.</p>
+        <p class="mode-myth">The assembly script prepares the environment, compiles source text into executable runic codes, packages them, and shapes the bootable vessel at <code>build/ritos.iso</code>.</p>
+        
+        <div class="code-container">
+          <div class="code-header">
+            <span>Build Compilation</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code># Method A: Build script (Recommended)
+./scripts/build_iso.sh
+
+# Method B: Makefile
+make clean && make</code></pre>
+        </div>
+
+        <h3 class="block-title">3. Run the Virtual Machine emulator</h3>
+        <div class="code-container">
+          <div class="code-header">
+            <span>Execution in Emulator</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code># Run compiled ISO with QEMU x86 emulation
+qemu-system-i386 -cdrom build/ritos.iso</code></pre>
+        </div>
+
+        <div class="highlight-box">
+          <h4 style="font-weight: 700; color: var(--accent-primary); margin-bottom: 0.5rem;">
+            <span class="mode-tech">Desktop Interface Shortcuts</span>
+            <span class="mode-myth">Rites of Interaction</span>
+          </h4>
+          <ul style="list-style: none; padding-left: 0; color: var(--text-muted); font-size: 0.95rem;">
+            <li><strong>[Tab]</strong> — Cycle focus between desktop app buttons & input fields</li>
+            <li><strong>[Esc]</strong> — Close currently focused window</li>
+            <li><strong>[Mouse Left-Click]</strong> — Drag title bars to position windows; trigger actions</li>
+            <li><strong>☼ Start</strong> — Toggles the system launcher and reboot/shutdown utilities</li>
+          </ul>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ==========================================
+       8. JAVASCRIPT: LOGIC & SIMULATORS
+       ========================================== -->
+  <script>
+    /* ==========================================
+       THEME & RESPONSIVE TOGGLES
+       ========================================== */
+    const body = document.body;
+    const modeBtn = document.getElementById('modeToggleBtn');
+    
+    modeBtn.addEventListener('click', () => {
+      if (body.classList.contains('technical-mode')) {
+        body.classList.remove('technical-mode');
+        body.classList.add('mythology-mode');
+      } else {
+        body.classList.remove('mythology-mode');
+        body.classList.add('technical-mode');
+      }
+      // Re-render simulator to match colors
+      renderHeap();
+    });
+
+    const menuToggleBtn = document.getElementById('menuToggleBtn');
+    const sidebarContainer = document.getElementById('sidebarContainer');
+    menuToggleBtn.addEventListener('click', () => {
+      sidebarContainer.classList.toggle('menu-open');
+    });
+
+    // Copy to clipboard helper
+    function copyCode(btn) {
+      const pre = btn.parentElement.nextElementSibling;
+      navigator.clipboard.writeText(pre.textContent).then(() => {
+        const origText = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.textContent = origText;
+        }, 1500);
+      });
+    }
+
+    // ScrollSpy active link highlights
+    const sections = document.querySelectorAll('section');
+    const navLi = document.querySelectorAll('.nav-menu li');
+    window.addEventListener('scroll', () => {
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        const sectionHeight = section.clientHeight;
+        if (pageYOffset >= (sectionTop - 150)) {
+          current = section.getAttribute('id');
+        }
+      });
+      navLi.forEach(li => {
+        li.classList.remove('active');
+        if (li.querySelector('a').getAttribute('href').slice(1) === current) {
+          li.classList.add('active');
+        }
+      });
+    });
+
+    /* ==========================================
+       DIRECTORY TREE WIDGET DATA & LOGIC
+       ========================================== */
+    const treeData = {
+      root: {
+        title: "ritos/",
+        meta: "Project Root Directory",
+        desc: {
+          tech: "Contains the complete source code, Makefile, compile orchestration configs, assets, and packaging utilities for RitOS.",
+          myth: "The absolute origin of the digital cosmos. From here, the Makefile weaves raw code files into bootable vessels."
+        }
+      },
+      arch: {
+        title: "arch/",
+        meta: "Hardware Ports Root",
+        desc: {
+          tech: "Hosts separate subdirectories for each board/CPU port. Currently contains x86; future architectures (ARM/x64) will live here.",
+          myth: "The physical temples of the gods. Each port corresponds to a different substrate of bare metal, binding code to silicon."
+        }
+      },
+      "arch-x86": {
+        title: "arch/x86/",
+        meta: "x86 CPU & BIOS Port",
+        desc: {
+          tech: "The BIOS/GRUB port of RitOS. Integrates real-mode setup, multiboot configs, and low-level BIOS drivers.",
+          myth: "The Temple of the x86 Creator. Houses the boot rites, protected mode stack setup, and the basic drivers of ports."
+        }
+      },
+      "arch-x86-boot": {
+        title: "arch/x86/boot/",
+        meta: "Bootloaders and Linkers",
+        desc: {
+          tech: "Contains boot.s (assembly entry points that handle boot state, disabling paging, and jumping to C code) and grub.cfg.",
+          myth: "The sanctuary of the High Priests. Contains the incantations that raise the CPU from its sleep and open the gateway to kernel space."
+        }
+      },
+      "arch-x86-drivers": {
+        title: "arch/x86/drivers/",
+        meta: "Hardware-Specific Drivers",
+        desc: {
+          tech: "Contains implementations of keyboard, mouse, power, and VGA terminal drivers linked directly to raw I/O registers.",
+          myth: "The hands of the Creator. Relays the movement of mice, presses of keyboards, and outputs commands directly to ports."
+        }
+      },
+      "arch-x86-inc": {
+        title: "arch/x86/include/kernel/",
+        meta: "Port specific headers",
+        desc: {
+          tech: "Headers containing low-level hardware routines (like io.h for outb/inb assembly commands). Precedes general headers on include paths.",
+          myth: "The secret scrolls. Tells the system how to directly address raw CPU instructions, hiding specific hardware details."
+        }
+      },
+      kernel: {
+        title: "kernel/",
+        meta: "Portable Kernel Core",
+        desc: {
+          tech: "The platform-independent core of RitOS. Houses memory allocation algorithms and standard driver interfaces.",
+          myth: "The Inner Sanctum of Ring 0. Contains the core logic that remains constant, regardless of which physical motherboard it is called upon."
+        }
+      },
+      "kernel-core": {
+        title: "kernel/core/",
+        meta: "Kernel Core Source Files",
+        desc: {
+          tech: "Integrates kernel.c (system start sequence) and memory.c (the double-linked free-list bump allocator).",
+          myth: "The chamber of Gaea. Controls the birth and synthesis of memory bytes, and calls upon VESA framebuffers to draw boot splashes."
+        }
+      },
+      "kernel-drivers": {
+        title: "kernel/drivers/",
+        meta: "Portable Device Drivers",
+        desc: {
+          tech: "Contains fb.c, the hardware-independent linear framebuffer compositor which renders shapes, letters, and icons.",
+          myth: "Chronos' workspace. Translates high-level graphics queries into raw pixel streams, blending colors and drawing text fonts."
+        }
+      },
+      "kernel-lib": {
+        title: "kernel/lib/",
+        meta: "Freestanding helpers",
+        desc: {
+          tech: "Custom implementations of basic C library tasks (like string operations and memory copiers) to avoid linking glibc.",
+          myth: "The tools of scribes. Standard helpers to manipulate text and copy raw buffers without reliance on foreign software."
+        }
+      },
+      "kernel-inc": {
+        title: "kernel/include/kernel/",
+        meta: "Kernel Header Interfaces",
+        desc: {
+          tech: "Exposes declarations for linear framebuffer renderers, allocator headers, and device driver interfaces.",
+          myth: "The system covenants. Outlines the definitions and functions that each specific hardware port must provide."
+        }
+      },
+      user: {
+        title: "user/",
+        meta: "Portable Userland Subsystem",
+        desc: {
+          tech: "Contains all libraries, app shims, window toolkits, applications, and shells running inside Ring 3.",
+          myth: "The Terrestrial Plain. Houses the libraries and creations of mortal processes, operating in safety under Ring 3."
+        }
+      },
+      "user-api": {
+        title: "user/api/",
+        meta: "Kernel-User Bridge API",
+        desc: {
+          tech: "Exposes the RitOS_API function table structure that links Userland memory calls directly to Kernel allocations.",
+          myth: "The Divine Covenant. Represents the portal through which Userland processes request resources from the Ring 0 deities."
+        }
+      },
+      "user-runtime": {
+        title: "user/runtime/",
+        meta: "Startup Shims & Environment C++",
+        desc: {
+          tech: "Redirects operators new/delete to kmalloc/kfree, loads VFS caches, and calls the entry point of the desktop compositor.",
+          myth: "The rituals of entry. Prepares applications to exist in Userland, mapping new variables to Gaea's allocation rules."
+        }
+      },
+      "user-lib": {
+        title: "user/lib/",
+        meta: "User libraries root",
+        desc: {
+          tech: "Houses 'rit' (system helpers and VFS wrappers) and 'gui' (the window compositing framework).",
+          myth: "The archives of wisdom. Houses libraries that define the physics of windows and VFS directory scrolls."
+        }
+      },
+      "user-lib-rit": {
+        title: "user/lib/rit/",
+        meta: "Core User Helper Libraries",
+        desc: {
+          tech: "Contains VFS wrapper implementations and system call dispatchers.",
+          myth: "Hermes' scroll binders. Bridges applications with system files and standard text layouts."
+        }
+      },
+      "user-lib-gui": {
+        title: "user/lib/gui/",
+        meta: "Compositing Window Toolkit",
+        desc: {
+          tech: "Defines the classes Window, Desktop, and standard app windows. Controls title dragging, resizing, buttons, and layouts.",
+          myth: "Aura's workspace. Handles the placement, focus hierarchy, and graphics bounds of floating application frames."
+        }
+      },
+      "user-shell": {
+        title: "user/shell/",
+        meta: "System Workspace Shell",
+        desc: {
+          tech: "Integrates the taskbar, start menu popup, clock widget, and desktop background drawer.",
+          myth: "The face of the cosmos. Draws the start button, taskbar icons, and handles the launch signals of shortcuts."
+        }
+      },
+      "user-apps": {
+        title: "user/apps/",
+        meta: "Dynamic System Applications",
+        desc: {
+          tech: "Contains modules for calculator, terminal, sysmon, file explorer, settings, calendar, and text editor.",
+          myth: "The creations of Userland. Individual spirits (Calculator, Text Editor, File Explorer) that developers invoke to interact with files."
+        }
+      },
+      assets: {
+        title: "assets/",
+        meta: "Graphics, Fonts & Icons",
+        desc: {
+          tech: "Holds standard SVG vector icons (settings, terminal, editor) and font source grids.",
+          myth: "The chest of glyphs. Holds vector drawings and character maps used to paint windows and launcher icons."
+        }
+      },
+      tools: {
+        title: "tools/",
+        meta: "Host Packaging Tools",
+        desc: {
+          tech: "Holds elf2rbx (parses ELF headers, checksums code, embeds icons, outputs RBX) and bin2c (converts assets to C sources).",
+          myth: "The Forge. Tools running on the host system that package raw compilations into the Sealed vessels."
+        }
+      },
+      readme: {
+        title: "README.md",
+        meta: "Documentation Summary",
+        desc: {
+          tech: "Provides compilation scripts, run triggers, emulation keyboard shortcuts, and directory definitions.",
+          myth: "The initial text. A brief summary code instructing summoners on dependencies and key sequences."
+        }
+      },
+      makefile: {
+        title: "Makefile",
+        meta: "GNU Make Compilation Rules",
+        desc: {
+          tech: "Orchestrates build targets, links objects, embeds files into memory images, and runs elf2rbx to package modules.",
+          myth: "The Weaver. Translates the codebase variables into binary objects and links them together to make a bootable vessel."
+        }
+      }
+    };
+
+    const treeNodes = document.querySelectorAll('.tree-node');
+    const infoTitle = document.getElementById('infoTitle');
+    const infoMeta = document.getElementById('infoMeta');
+    const infoBody = document.getElementById('infoBody');
+
+    treeNodes.forEach(node => {
+      node.addEventListener('click', (e) => {
+        e.stopPropagation();
+        treeNodes.forEach(n => n.classList.remove('active-node'));
+        node.classList.add('active-node');
+        
+        const pathKey = node.getAttribute('data-path');
+        const data = treeData[pathKey] || treeData.root;
+        
+        infoTitle.textContent = data.title;
+        infoMeta.textContent = data.meta;
+        
+        // Render text depending on active mode
+        if (body.classList.contains('technical-mode')) {
+          infoBody.innerHTML = `<p>${data.desc.tech}</p>`;
+        } else {
+          infoBody.innerHTML = `<p style="font-style: italic; color: #f2e2cf;">${data.desc.myth}</p>`;
+        }
+      });
+    });
+
+    /* ==========================================
+       HEAP ALLOCATOR SIMULATOR LOGIC
+       ========================================== */
+    // Initial state: 512 bytes, completely free
+    const HEAP_SIZE = 512;
+    const HEADER_SIZE = 16; // block_t header overhead
+    const MIN_SPLIT = 32;   // minimal split payload size
+
+    let heap = [
+      { size: HEAP_SIZE - HEADER_SIZE, used: false, offset: 0, magic: '0xF7EEB10C', id: -1 }
+    ];
+    let nextAllocId = 1;
+
+    function renderHeap() {
+      const memoryBar = document.getElementById('memoryBar');
+      const heapUsageIndicator = document.getElementById('heapUsageIndicator');
+      memoryBar.innerHTML = '';
+      
+      let usedBytes = 0;
+      
+      heap.forEach((block, index) => {
+        const totalBlockSize = block.size + HEADER_SIZE;
+        const widthPct = (totalBlockSize / HEAP_SIZE) * 100;
+        
+        const div = document.createElement('div');
+        div.className = `sim-block ${block.used ? 'used' : 'free'}`;
+        div.style.width = `${widthPct}%`;
+        
+        if (block.used) {
+          usedBytes += block.size;
+          div.innerHTML = `
+            <div class="sim-block-text">App #${block.id}<br>${block.size}B</div>
+            <button class="block-overlay-btn" onclick="simKfree(${index}, event)">kfree(${block.size}B)</button>
+          `;
+          div.title = `Block #${block.id} | Payload: ${block.size}B | Overhead: ${HEADER_SIZE}B | Magic: 0xA110C8ED`;
+        } else {
+          div.innerHTML = `
+            <div class="sim-block-text">Free<br>${block.size}B</div>
+          `;
+          div.title = `Free space | Payload: ${block.size}B | Overhead: ${HEADER_SIZE}B | Magic: 0xF7EEB10C`;
+        }
+        
+        memoryBar.appendChild(div);
+      });
+      
+      heapUsageIndicator.textContent = `Used: ${usedBytes}B / ${HEAP_SIZE}B (Excludes Headers)`;
+    }
+
+    function addSimLog(action, text) {
+      const logPanel = document.getElementById('simLogPanel');
+      const row = document.createElement('div');
+      row.className = 'sim-log-row';
+      
+      const ts = new Date().toLocaleTimeString();
+      let actionClass = '';
+      
+      if (action.includes('malloc')) actionClass = 'log-action-alloc';
+      else if (action.includes('free')) actionClass = 'log-action-free';
+      else if (action.includes('coalesce')) actionClass = 'log-action-coalesce';
+      else if (action.includes('error')) actionClass = 'log-action-error';
+      
+      row.innerHTML = `
+        <span class="log-ts">[${ts}]</span>
+        <span class="${actionClass}">[${action}]</span>
+        <span>${text}</span>
+      `;
+      logPanel.appendChild(row);
+      logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    function simKmalloc() {
+      const sizeInput = document.getElementById('allocSizeInput');
+      let size = parseInt(sizeInput.value);
+      
+      if (isNaN(size) || size <= 0) {
+        addSimLog('error', 'Allocation size must be positive.');
+        return;
+      }
+      
+      // 16-byte alignment
+      const originalSize = size;
+      size = Math.ceil(size / 16) * 16;
+      const alignedText = size !== originalSize ? ` (aligned to ${size}B)` : '';
+      
+      // First-fit search
+      let foundIndex = -1;
+      for (let i = 0; i < heap.length; i++) {
+        if (!heap[i].used && heap[i].size >= size) {
+          foundIndex = i;
+          break;
+        }
+      }
+      
+      if (foundIndex === -1) {
+        addSimLog('error', `Out of Memory! No free block accommodates ${size}B.`);
+        return;
+      }
+      
+      const block = heap[foundIndex];
+      const allocId = nextAllocId++;
+      
+      // Check if we can split this block
+      // Remaining payload must be at least MIN_SPLIT bytes to warrant split
+      const remainingPayload = block.size - size - HEADER_SIZE;
+      
+      if (remainingPayload >= MIN_SPLIT) {
+        const oldSize = block.size;
+        block.size = size;
+        block.used = true;
+        block.magic = '0xA110C8ED';
+        block.id = allocId;
+        
+        // Insert new free block after this one
+        const splitBlock = {
+          size: remainingPayload,
+          used: false,
+          offset: block.offset + HEADER_SIZE + size,
+          magic: '0xF7EEB10C',
+          id: -1
+        };
+        
+        heap.splice(foundIndex + 1, 0, splitBlock);
+        
+        addSimLog('kmalloc', `Allocated block #${allocId} of ${size}B${alignedText}. Split free block from ${oldSize}B to ${remainingPayload}B.`);
+      } else {
+        // Take the whole block
+        block.used = true;
+        block.magic = '0xA110C8ED';
+        block.id = allocId;
+        addSimLog('kmalloc', `Allocated block #${allocId} of ${block.size}B${alignedText} (took entire block).`);
+      }
+      
+      renderHeap();
+    }
+
+    function simKmallocRandom() {
+      const sizes = [16, 32, 48, 64, 80, 96, 128];
+      const randomSize = sizes[Math.floor(Math.random() * sizes.length)];
+      document.getElementById('allocSizeInput').value = randomSize;
+      simKmalloc();
+    }
+
+    function simKfree(index, event) {
+      if (event) event.stopPropagation();
+      if (index < 0 || index >= heap.length) return;
+      
+      const block = heap[index];
+      if (!block.used) return;
+      
+      const freedId = block.id;
+      const freedSize = block.size;
+      
+      block.used = false;
+      block.magic = '0xF7EEB10C';
+      block.id = -1;
+      
+      addSimLog('kfree', `Freed block #${freedId} of size ${freedSize}B.`);
+      
+      // Coalescing loops
+      coalesceHeap();
+      renderHeap();
+    }
+
+    function coalesceHeap() {
+      let coalesced = false;
+      
+      for (let i = 0; i < heap.length - 1; i++) {
+        if (!heap[i].used && !heap[i+1].used) {
+          const mergedSize = heap[i].size + HEADER_SIZE + heap[i+1].size;
+          addSimLog('coalesce', `Merged free block ${heap[i].size}B and ${heap[i+1].size}B into single ${mergedSize}B block.`);
+          
+          heap[i].size = mergedSize;
+          heap.splice(i+1, 1);
+          i--; // re-test this position
+          coalesced = true;
+        }
+      }
+    }
+
+    function simReset() {
+      heap = [
+        { size: HEAP_SIZE - HEADER_SIZE, used: false, offset: 0, magic: '0xF7EEB10C', id: -1 }
+      ];
+      nextAllocId = 1;
+      addSimLog('reset', 'Heap re-initialized to 512B contiguous free region.');
+      renderHeap();
+    }
+
+    // Initialize Simulator
+    simReset();
+
+    /* ==========================================
+       API CATALOG DATA & FILTERING
+       ========================================== */
+    const apiData = [
+      // Graphics API
+      { name: "fb_fill_rect", sig: "void (*fb_fill_rect)(int x, int y, int w, int h, uint32_t argb)", cat: "graphics", tech: "Fills a rectangular section of the back buffer with a solid ARGB color (A=Alpha, R=Red, G=Green, B=Blue). Does not execute blending.", myth: "Commands Chronos to cover a rectangular coordinates of the screen with a solid pixel glaze, overriding any previous shapes." },
+      { name: "fb_fill_rect_blend", sig: "void (*fb_fill_rect_blend)(int x, int y, int w, int h, uint32_t argb)", cat: "graphics", tech: "Draws a colored rectangle blending the alpha value with target background pixels (transparency composition).", myth: "Chronos weaves the color with underlying light, blending elements together like morning mist." },
+      { name: "fb_blit_argb", sig: "void (*fb_blit_argb)(const uint32_t* pixels, int x, int y, int w, int h)", cat: "graphics", tech: "Directly blits raw array of ARGB pixel buffers into coordinates. Used to render icons and raster images.", myth: "Manifests a prepared glyph image directly onto the desktop coordinates by copying raw pixel matrices." },
+      { name: "fb_draw_string_px", sig: "void (*fb_draw_string_px)(const char* text, uint32_t fg, uint32_t bg, int x, int y, int transparent_bg)", cat: "graphics", tech: "Renders strings using the embedded 8x16 VGA font. Supports transparent backgrounds.", myth: "Paints standard text runes onto the screen using Chronos' sacred font map." },
+      { name: "fb_fill_grad_v", sig: "void (*fb_fill_grad_v)(int x, int y, int w, int h, uint32_t top, uint32_t bot)", cat: "graphics", tech: "Draws a rectangle with a vertical linear color gradient shifting from top to bottom.", myth: "Commands Chronos to stretch color vectors, bleeding a top color hue into a bottom color hue." },
+      { name: "fb_fill_grad_h", sig: "void (*fb_fill_grad_h)(int x, int y, int w, int h, uint32_t left, uint32_t right)", cat: "graphics", tech: "Draws a rectangle with a horizontal color gradient shifting from left to right.", myth: "Chronos stretches color vectors horizontally, blending dawn color to dusk color." },
+      { name: "fb_fill_rounded_rect", sig: "void (*fb_fill_rounded_rect)(int x, int y, int w, int h, int r, uint32_t argb)", cat: "graphics", tech: "Renders a rectangle with smooth corners of radius r. Uses custom coordinate circle mathematics.", myth: "Chronos smooths the sharp corners of coordinates, creating curved containers." },
+      { name: "fb_fill_circle", sig: "void (*fb_fill_circle)(int cx, int cy, int r, uint32_t argb)", cat: "graphics", tech: "Fills a circle centered at cx, cy with radius r. Evaluates pixel distance constraints.", myth: "Casts a circular aura of color around a central point, checking distances from the center." },
+      { name: "fb_draw_hline_px", sig: "void (*fb_draw_hline_px)(int x, int y, int w, uint32_t argb)", cat: "graphics", tech: "Draws a fast single horizontal line at coordinate y of width w. Bypasses calculations.", myth: "Strikes a single horizontal path of color across coordinates." },
+      { name: "fb_flush_px", sig: "void (*fb_flush_px)(void)", cat: "graphics", tech: "Flushes the pixel composition buffer to the physical screen hardware registers.", myth: "Chronos executes the sacred sync: the back buffer is made physical, revealing changes to mortal eyes." },
+      { name: "fb_get_width", sig: "int (*fb_get_width)(void)", cat: "graphics", tech: "Retrieves the width of the active linear framebuffer layout.", myth: "Queries the absolute horizontal boundary of the screen plain." },
+      { name: "fb_get_height", sig: "int (*fb_get_height)(void)", cat: "graphics", tech: "Retrieves the height of the active linear framebuffer layout.", myth: "Queries the absolute vertical boundary of the screen plain." },
+      { name: "fb_is_available", sig: "int (*fb_is_available)(void)", cat: "graphics", tech: "Checks if a linear framebuffer (VBE) is configured. Returns 1 if true, 0 if using VGA Text Mode.", myth: "Checks if Chronos has manifested his high-resolution framebuffer form, or remains restricted to text." },
+      
+      // VFS API
+      { name: "vfs_exists", sig: "int (*vfs_exists)(const char* name)", cat: "vfs", tech: "Verifies if the file corresponding to name exists in the flat VFS structure.", myth: "Asks Hermes if a scroll of name is currently held inside his ledger." },
+      { name: "vfs_create_file", sig: "int (*vfs_create_file)(const char* name, const char* content, int length)", cat: "vfs", tech: "Creates a new file. Enforces a maximum length of 64KB. Fails if name exists.", myth: "Hermes binds a new file scroll with the specified name and contents." },
+      { name: "vfs_read_file", sig: "const char* (*vfs_read_file)(const char* name, int* out_length)", cat: "vfs", tech: "Returns a read-only pointer to the contents of name and populates out_length.", myth: "Hermes retrieves a scroll, offering a reading pointer to its text contents." },
+      { name: "vfs_write_file", sig: "int (*vfs_write_file)(const char* name, const char* content, int length)", cat: "vfs", tech: "Overwrites the contents of name with length bytes of new text contents.", myth: "Hermes unbinds a scroll, scratching new letters into it and sealing it." },
+      { name: "vfs_delete_file", sig: "int (*vfs_delete_file)(const char* name)", cat: "vfs", tech: "Removes name from the file ledger, freeing up slots in the VFS structure.", myth: "Hermes burns a scroll, erasing its name from the registry of files." },
+      { name: "vfs_rename_file", sig: "int (*vfs_rename_file)(const char* old_name, const char* new_name)", cat: "vfs", tech: "Changes file name registry references from old_name to new_name.", myth: "Hermes alters the seal name of a scroll without burning its text content." },
+      { name: "vfs_get_file_list", sig: "int (*vfs_get_file_list)(const char* names[], int max_files)", cat: "vfs", tech: "Fills names array with file path strings up to max_files. Returns count.", myth: "Hermes copies his entire ledger list of scrolls, presenting it to the caller." },
+
+      // Memory API
+      { name: "kmalloc", sig: "void* (*kmalloc)(size_t size)", cat: "memory", tech: "Allocates size bytes from the kernel heap. Aligns requests to 16 bytes. Preceded by header.", myth: "Requests Gaea to yield a section of her memory garden, sealing it with a header." },
+      { name: "kfree", sig: "void (*kfree)(void* ptr)", cat: "memory", tech: "Frees allocated block at ptr. Invokes split-block merging (coalescence).", myth: "Returns a memory segment to Gaea, allowing her to merge it with neighboring empty space." },
+      { name: "get_heap_usage", sig: "size_t (*get_heap_usage)(void)", cat: "memory", tech: "Returns the sum of payload bytes allocated by kmalloc.", myth: "Asks Gaea what portion of her garden is currently carrying life." },
+
+      // Input API
+      { name: "init_mouse", sig: "void (*init_mouse)(void)", cat: "input", tech: "Initializes PS/2 mouse interface registers and configures sample rate.", myth: "Instructs the system to start polling mouse movements from hardware ports." },
+      { name: "poll_mouse", sig: "int (*poll_mouse)(int* x, int* y, uint8_t* buttons)", cat: "input", tech: "Polls current relative mouse coordinate changes and mouse button states.", myth: "Captures current mouse coordinate displacements and button status changes." },
+      { name: "poll_mouse_px", sig: "int (*poll_mouse_px)(int* x, int* y, uint8_t* buttons)", cat: "input", tech: "Polls mouse coordinates absolute values bounded to screen pixels.", myth: "Captures mouse absolute cursor pixel coordinates on the active screen surface." },
+      { name: "poll_keyboard", sig: "int (*poll_keyboard)(char* out_char)", cat: "input", tech: "Polls active keyboard buffer. Non-blocking; returns 1 if key ready.", myth: "Checks if a keypress is waiting in the keyboard ring buffer, returning it if present." },
+
+      // System API
+      { name: "shutdown", sig: "void (*shutdown)(void)", cat: "system", tech: "Signals ACPI or QEMU debug port to shut down virtual environment.", myth: "Summons the absolute sleep: commands the motherboard to power off." },
+      { name: "reboot", sig: "void (*reboot)(void)", cat: "system", tech: "Signals 8042 keyboard controller to trigger CPU reset pin.", myth: "Triggers the rebirth: signals hardware registers to reset the CPU immediately." },
+      { name: "get_time", sig: "void (*get_time)(int* hour, int* min, int* sec)", cat: "system", tech: "Reads RTC registers to retrieve current system time.", myth: "Asks Chronos to read the system Real-Time Clock registers." },
+      { name: "get_date", sig: "void (*get_date)(int* year, int* month, int* day)", cat: "system", tech: "Reads RTC registers to retrieve current system date.", myth: "Reads the system Real-Time Clock registers to retrieve active calendar date." },
+      { name: "load_rbx", sig: "void* (*load_rbx)(const char* filepath)", cat: "system", tech: "Invokes loader to parse, checksum, and load binary into memory, returning entry point.", myth: "Instructs Hermes to unseal a vessel, check its checksum, and load it into memory." },
+      { name: "launch_app", sig: "void (*launch_app)(const char* title)", cat: "system", tech: "Registers request to launch app module named title inside GUI thread.", myth: "Requests the GUI desktop manager to execute the app named title." }
+    ];
+
+    let currentApiTag = 'all';
+
+    function populateAPIs() {
+      const grid = document.getElementById('apiCardsGrid');
+      const searchQuery = document.getElementById('apiSearch').value.toLowerCase();
+      
+      grid.innerHTML = '';
+      
+      const filtered = apiData.filter(api => {
+        const matchesTag = currentApiTag === 'all' || api.cat === currentApiTag;
+        const matchesSearch = api.name.toLowerCase().includes(searchQuery) || 
+                              api.sig.toLowerCase().includes(searchQuery) ||
+                              api.tech.toLowerCase().includes(searchQuery) ||
+                              api.myth.toLowerCase().includes(searchQuery);
+        return matchesTag && matchesSearch;
+      });
+      
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No APIs matched search constraints.</div>`;
+        return;
+      }
+      
+      filtered.forEach(api => {
+        const card = document.createElement('div');
+        card.className = 'api-card';
+        
+        card.innerHTML = `
+          <div class="api-card-header">
+            <span class="api-func-name">${api.name}</span>
+            <span class="api-cat-tag">${api.cat}</span>
+          </div>
+          <div class="api-func-sig">${api.sig}</div>
+          
+          <div class="api-desc mode-tech">${api.tech}</div>
+          <div class="api-desc mode-myth" style="font-style: italic; color: #f2e2cf;">${api.myth}</div>
+        `;
+        
+        grid.appendChild(card);
+      });
+    }
+
+    function selectApiTag(tag) {
+      currentApiTag = tag;
+      
+      const tagBtns = document.querySelectorAll('#apiTagContainer .tag-btn');
+      tagBtns.forEach(btn => {
+        btn.classList.remove('active-tag');
+        if (btn.textContent.toLowerCase().includes(tag)) {
+          btn.classList.add('active-tag');
+        } else if (tag === 'all' && btn.textContent === 'All') {
+          btn.classList.add('active-tag');
+        }
+      });
+      
+      populateAPIs();
+    }
+
+    function filterAPIs() {
+      populateAPIs();
+    }
+
+    // Initial API pop
+    populateAPIs();
+  </script>
+</body>
+</html>
