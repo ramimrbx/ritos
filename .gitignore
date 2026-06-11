@@ -7,14 +7,6 @@ ritos.iso
 *.o
 *.d
 iso_root/
-sdk/apps/*.elf
-sdk/apps/*.rbx
-sdk/framework/src/embedded_apps.cpp
-scripts/bin2c
-scripts/elf2rbx
-
-# Local dependencies
-local_mtools/
 
 # Editor and OS specific files
 .vscode/

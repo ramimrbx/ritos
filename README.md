@@ -50,9 +50,87 @@ make clean
 make
 ```
 
-Upon successful compilation, two main targets will be generated in the project root directory:
-*   `ritos.bin`: The raw kernel ELF binary.
-*   `ritos.iso`: The bootable ISO image containing the GRUB bootloader configuration and the kernel binary.
+Upon successful compilation, two main targets will be generated under `build/`:
+*   `build/ritos.bin`: The raw kernel ELF binary.
+*   `build/ritos.iso`: The bootable ISO image containing the GRUB bootloader configuration and the kernel binary.
+
+---
+
+## 📁 Source Layout
+
+The tree separates portable code from machine-specific code, then organizes
+the portable side by privilege layer. RitOS targets many machines (x86 today;
+x64, ARM, embedded/IoT devices planned), so everything CPU- or board-specific
+lives in a port under `arch/` and the rest of the tree never changes between
+targets.
+
+```
+arch/        One subdirectory per CPU/platform port (see arch/README.md)
+  x86/         the i386 BIOS/GRUB port (the only one implemented today)
+    arch.mk      toolchain, target flags, image packaging for this port
+    boot/        multiboot entry (boot.s), GRUB config, linker script
+    drivers/     PS/2 keyboard & mouse, VGA text terminal, port-I/O power
+    include/     arch-provided <kernel/...> headers (io.h)
+kernel/      The portable kernel
+  core/        kernel entry, memory management
+  drivers/     hardware-independent drivers (linear framebuffer renderer)
+  lib/         freestanding helpers (string)
+  include/     public kernel headers — the interfaces each port implements
+user/        Everything that runs above the kernel (fully portable)
+  api/         the kernel<->user API surface (<ritos/api.hpp>)
+  runtime/     app startup glue: app_shim, cpp_support, sdk_entry
+  lib/
+    rit/         core userland library: string, object, vfs, system (<rit/...>)
+    gui/         window/desktop toolkit (<ritos/...>)
+    modern_gui/  experimental compositor stack (not yet built)
+  shell/       components that ARE the desktop: desktop, taskbar, startmenu, statusbars
+  apps/        ordinary launchable apps: calculator, terminal, texteditor, ...
+assets/      Graphics and fonts
+  src/         real sources (svg)
+  gen/         headers generated from them (do not hand-edit)
+tools/       Host-side build tools: bin2c, elf2rbx, asset generators
+scripts/     Build orchestration (build_iso.sh)
+build/       All build output (gitignored)
+```
+
+Builds select a port with `make ARCH=x86` (the default).
+
+---
+
+## 📦 RBX — the native executable format
+
+`.rbx` is RitOS's own executable format — the equivalent of Windows' `.exe`.
+Every program the OS runs (the desktop shell itself included) is an `.rbx`
+file: a self-describing 64-byte header (magic `RBX2`, format version, target
+CPU architecture, entry type, load address, entry point, code/bss sizes, a
+checksum, and the program name) followed by the raw program image. The format
+is defined once in `user/lib/rit/include/rit/rbx_format.h`, shared by the
+in-OS loader and the build tools, and the loader validates every field before
+executing anything — corrupt, truncated, or wrong-architecture binaries are
+refused.
+
+`.rbx` files can be run from anywhere in the OS:
+
+*   **File Explorer** — select an `.rbx` file and press *Open* (or Enter).
+*   **Terminal** — `run <name>` or `run /sys/<name>.rbx`.
+*   **Desktop / Start Menu** — icons launch the corresponding `.rbx`.
+
+At build time, `tools/elf2rbx.cpp` packages the linker's intermediate ELF
+output into RBX; the OS itself never sees or understands ELF.
+
+Each `.rbx` also carries its own 32×32 icon (embedded by the build from
+`assets/src/icons/*.svg`), so launchers read an app's icon from the
+executable itself — nothing is hardcoded in the desktop.
+
+### Shortcuts (`.stct`)
+
+Desktop icons and start-menu entries are **shortcut files**, not hardcoded
+lists. A `.stct` file's content is simply the path of the target executable
+(e.g. `/sys/clock.rbx`). The desktop shows every shortcut in the `/desktop`
+folder; the start menu shows everything in `/launcher`. The displayed name is
+the shortcut's filename with the extension hidden, and the icon is read from
+the target `.rbx`. In the File Explorer, shortcuts appear with their full
+`.stct` name, and opening one launches its target.
 
 ---
 
@@ -61,7 +139,7 @@ Upon successful compilation, two main targets will be generated in the project r
 You can run the bootable ISO using the QEMU emulator:
 
 ```bash
-qemu-system-i386 -cdrom ritos.iso
+qemu-system-i386 -cdrom build/ritos.iso
 ```
 
 ### Emulation Controls & Keyboard Shortcuts

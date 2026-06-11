@@ -1,21 +1,34 @@
-CC = gcc
-CXX = g++
-AS = gcc
-LD = ld
+# RitOS top-level build. Portable layers (kernel core, user/) are compiled
+# the same way for every port; everything CPU/board specific comes from
+# arch/$(ARCH)/arch.mk (toolchain, flags, boot code, image packaging).
+ARCH ?= x86
 
 NOGUI ?= 0
 
-# All build artifacts live under build/, mirroring the source tree layout
-# (e.g. kernel/src/fb.c -> build/kernel/src/fb.o) so names can never collide.
+.DEFAULT_GOAL := all
+
+# All build artifacts live under build/, mirroring the source tree layout:
+# objects (kernel/drivers/fb.c -> build/kernel/drivers/fb.o) and app binaries
+# (user/apps/clock/ -> build/user/apps/clock/clock.{elf,rbx}) alike, so two
+# sources with the same name can never collide in the build tree.
 BUILD = build
 GEN   = $(BUILD)/generated
 TOOLS = $(BUILD)/tools
+BIN   = $(BUILD)/ritos.bin
 
-CFLAGS = -m32 -ffreestanding -O2 -Wall -Wextra -fno-pie -fno-pic -fno-stack-protector -Ikernel/include -nostdlib -MMD -MP
-CXXFLAGS = -m32 -ffreestanding -O2 -Wall -Wextra -fno-exceptions -fno-rtti -fno-pie -fno-pic -fno-stack-protector -Ikernel/include -Isdk/framework/include -Isdk/api/include -Isdk/gui/include -nostdlib -MMD -MP
-ASFLAGS = -m32 -c
-LDFLAGS = -m elf_i386 -T linker.ld -nostdlib -no-pie
-LDFLAGS_APP = -m elf_i386 -nostdlib
+include arch/$(ARCH)/arch.mk
+
+# Include roots: arch headers first so a port can provide/override
+# <kernel/...> headers (e.g. io.h), then portable kernel headers, generated
+# asset headers, then the userland layers in dependency order.
+INC_C   = -Iarch/$(ARCH)/include -Ikernel/include -Iassets/gen
+INC_CXX = $(INC_C) -Iuser/api/include -Iuser/lib/rit/include -Iuser/lib/gui/include
+
+CFLAGS = $(TARGET_CFLAGS) -ffreestanding -O2 -Wall -Wextra -fno-pie -fno-pic -fno-stack-protector $(INC_C) -nostdlib -MMD -MP
+CXXFLAGS = $(TARGET_CFLAGS) -ffreestanding -O2 -Wall -Wextra -fno-exceptions -fno-rtti -fno-pie -fno-pic -fno-stack-protector $(INC_CXX) -nostdlib -MMD -MP
+ASFLAGS = $(TARGET_ASFLAGS)
+LDFLAGS = -m $(TARGET_LDEMU) -T $(LINKER_SCRIPT) -nostdlib -no-pie
+LDFLAGS_APP = -m $(TARGET_LDEMU) -nostdlib
 
 ifeq ($(NOGUI),1)
 CXXFLAGS += -DNOGUI=1
@@ -37,45 +50,61 @@ terminal_ADDR   = 0x2B00040
 imgview_ADDR    = 0x2C00040
 nogui_shell_ADDR= 0x2000040
 
-# App Targets
+# App Targets (shell apps live in user/shell/, ordinary apps in user/apps/)
 ifeq ($(NOGUI),1)
 APPS = nogui_shell calculator texteditor filemanager calendar settings clock sysmon terminal
 else
 APPS = desktop taskbar startmenu statusbars calculator texteditor filemanager calendar settings clock sysmon terminal imgview
 endif
 
-APPS_RBX = $(foreach app,$(APPS),$(BUILD)/sdk/apps/$(app).rbx)
+# Each app builds in its own mirrored directory. Shell components live in
+# user/shell/, ordinary apps in user/apps/.
+SHELL_APPS = desktop taskbar startmenu statusbars
+app_dir  = user/$(if $(filter $(1),$(SHELL_APPS)),shell,apps)/$(1)
+APPS_RBX = $(foreach app,$(APPS),$(BUILD)/$(call app_dir,$(app))/$(app).rbx)
 
-# Kernel files
-C_SOURCES = $(wildcard kernel/src/*.c)
-KERNEL_CPP_SOURCES = sdk/framework/src/cpp_support.cpp \
-                     sdk/framework/src/system.cpp \
-                     sdk/framework/src/vfs.cpp \
-                     sdk/api/src/api.cpp \
-                     sdk/api/src/sdk_entry.cpp
+# Shortcuts (.stct): tiny files whose content is the target executable path.
+# Desktop icons come from /desktop, start-menu entries from /launcher.
+DESKTOP_SHORTCUTS  = SysMon=sysmon Calc=calculator Editor=texteditor Files=filemanager Clock=clock Calendar=calendar Settings=settings Terminal=terminal
+LAUNCHER_SHORTCUTS = $(DESKTOP_SHORTCUTS) ImgView=imgview
 
-OBJ = $(BUILD)/boot/boot.o \
+stct_name = $(word 1,$(subst =, ,$(1)))
+stct_app  = $(word 2,$(subst =, ,$(1)))
+STCT_DIR  = $(BUILD)/shortcuts
+
+# Everything bin2c embeds into the VFS image, as <vfs-path>=<built-file>
+EMBED_FILES = $(foreach app,$(APPS),/sys/$(app).rbx=$(BUILD)/$(call app_dir,$(app))/$(app).rbx) \
+              $(foreach s,$(DESKTOP_SHORTCUTS),/desktop/$(call stct_name,$(s)).stct=$(STCT_DIR)/desktop/$(call stct_name,$(s)).stct) \
+              $(foreach s,$(LAUNCHER_SHORTCUTS),/launcher/$(call stct_name,$(s)).stct=$(STCT_DIR)/launcher/$(call stct_name,$(s)).stct)
+
+# Kernel files: portable core + the port's drivers
+C_SOURCES = $(wildcard kernel/core/*.c kernel/drivers/*.c kernel/lib/*.c) \
+            $(ARCH_C_SOURCES)
+KERNEL_CPP_SOURCES = user/runtime/cpp_support.cpp \
+                     user/runtime/sdk_entry.cpp \
+                     user/lib/rit/src/system.cpp \
+                     user/lib/rit/src/vfs.cpp \
+                     user/api/src/api.cpp
+
+OBJ = $(ARCH_OBJS) \
       $(patsubst %.c,$(BUILD)/%.o,$(C_SOURCES)) \
       $(patsubst %.cpp,$(BUILD)/%.o,$(KERNEL_CPP_SOURCES)) \
       $(GEN)/embedded_apps.o
 
 # Objects shared by the apps
-APP_SHIM   = $(BUILD)/sdk/framework/src/app_shim.o $(BUILD)/kernel/src/string.o
-GUI_WINDOW = $(BUILD)/sdk/gui/src/window.o
-GUI_APPS   = $(BUILD)/sdk/gui/src/apps.o $(GUI_WINDOW)
+APP_SHIM   = $(BUILD)/user/runtime/app_shim.o $(BUILD)/kernel/lib/string.o
+GUI_WINDOW = $(BUILD)/user/lib/gui/src/window.o
+GUI_APPS   = $(BUILD)/user/lib/gui/src/apps.o $(GUI_WINDOW)
 
-BIN = $(BUILD)/ritos.bin
-ISO = $(BUILD)/ritos.iso
+all: assets/gen/font_8x16.h assets/gen/icons_32.h $(BIN) $(IMAGE)
 
-all: assets/font/font_8x16.h assets/icons/icons_32.h $(BIN) $(ISO)
+assets/gen/font_8x16.h:
+	python3 tools/gen_font.py
 
-assets/font/font_8x16.h:
-	python3 scripts/gen_font.py
+assets/gen/icons_32.h:
+	python3 tools/gen_icons.py
 
-assets/icons/icons_32.h:
-	python3 scripts/gen_icons.py
-
-$(BIN): $(OBJ) linker.ld
+$(BIN): $(OBJ) $(LINKER_SCRIPT)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS) -o $@ $(OBJ)
 
@@ -88,105 +117,121 @@ $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-$(BUILD)/boot/boot.o: boot/boot.s
+$(BUILD)/%.o: %.s
 	@mkdir -p $(@D)
 	$(AS) $(ASFLAGS) $< -o $@
 
 # ── Host tools ─────────────────────────────────────────────────────────────
-$(TOOLS)/bin2c: scripts/bin2c.cpp
+$(TOOLS)/bin2c: tools/bin2c.cpp
 	@mkdir -p $(@D)
 	g++ -O2 $< -o $@
 
-$(TOOLS)/elf2rbx: scripts/elf2rbx.cpp
+$(TOOLS)/elf2rbx: tools/elf2rbx.cpp user/lib/rit/include/rit/rbx_format.h
 	@mkdir -p $(@D)
-	g++ -O2 $< -o $@
+	g++ -O2 -Iuser/lib/rit/include $< -o $@
+
+# ── Shortcut files ─────────────────────────────────────────────────────────
+$(STCT_DIR)/.stamp: Makefile
+	@mkdir -p $(STCT_DIR)/desktop $(STCT_DIR)/launcher
+	@$(foreach s,$(DESKTOP_SHORTCUTS),printf '%s' '/sys/$(call stct_app,$(s)).rbx' > $(STCT_DIR)/desktop/$(call stct_name,$(s)).stct;)
+	@$(foreach s,$(LAUNCHER_SHORTCUTS),printf '%s' '/sys/$(call stct_app,$(s)).rbx' > $(STCT_DIR)/launcher/$(call stct_name,$(s)).stct;)
+	@touch $@
 
 # ── VFS embedding (generated source lives under build/generated) ──────────
-$(GEN)/embedded_apps.cpp: $(APPS_RBX) $(TOOLS)/bin2c
+$(GEN)/embedded_apps.cpp: $(APPS_RBX) $(STCT_DIR)/.stamp $(TOOLS)/bin2c
 	@mkdir -p $(@D)
-	$(TOOLS)/bin2c $(BUILD)/sdk/apps $@
+	$(TOOLS)/bin2c $@ $(EMBED_FILES)
 
 $(GEN)/embedded_apps.o: $(GEN)/embedded_apps.cpp
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# ── RBX packaging ──────────────────────────────────────────────────────────
-$(BUILD)/sdk/apps/%.rbx: $(BUILD)/sdk/apps/%.elf $(TOOLS)/elf2rbx
-	$(TOOLS)/elf2rbx $< $@
+# ── RBX packaging (next to the .elf in the app's build directory) ─────────
+# Most apps are GUI modules; desktop and nogui_shell are standalone programs
+# entered via _start (see RBX_TYPE_* in rit/rbx_format.h).
+$(BUILD)/user/shell/desktop/desktop.rbx:        RBX_TYPE = program
+$(BUILD)/user/apps/nogui_shell/nogui_shell.rbx: RBX_TYPE = program
 
-# ── ELF link rules for applications ───────────────────────────────────────
-$(BUILD)/sdk/apps/nogui_shell.elf: $(BUILD)/sdk/apps/nogui_shell/main.o $(APP_SHIM)
-	@mkdir -p $(@D)
-	$(LD) $(LDFLAGS_APP) -Ttext $(nogui_shell_ADDR) -e _start -o $@ $^
+# Apps with an icon get it embedded in their .rbx (32x32 ARGB)
+ICON_APPS = sysmon calculator texteditor filemanager clock calendar settings terminal imgview
+define APP_ICON_template
+$(BUILD)/$(call app_dir,$(1))/$(1).rbx: RBX_ICON = assets/gen/icons/$(1).argb
+$(BUILD)/$(call app_dir,$(1))/$(1).rbx: assets/gen/icons/$(1).argb
+endef
+$(foreach app,$(ICON_APPS),$(eval $(call APP_ICON_template,$(app))))
 
-$(BUILD)/sdk/apps/desktop.elf: $(BUILD)/sdk/apps/desktop/main.o $(GUI_WINDOW) $(APP_SHIM)
+assets/gen/icons/%.argb:
+	python3 tools/gen_icons.py
+
+$(BUILD)/%.rbx: $(BUILD)/%.elf $(TOOLS)/elf2rbx
+	$(TOOLS)/elf2rbx --type=$(or $(RBX_TYPE),module) $(if $(RBX_ICON),--icon=$(RBX_ICON)) $< $@
+
+# ── ELF link rules for shell components (user/shell/) ─────────────────────
+$(BUILD)/user/shell/desktop/desktop.elf: $(BUILD)/user/shell/desktop/main.o $(GUI_WINDOW) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(desktop_ADDR) -e _start -o $@ $^
 
-$(BUILD)/sdk/apps/taskbar.elf: $(BUILD)/sdk/apps/taskbar/main.o $(APP_SHIM)
+$(BUILD)/user/shell/taskbar/taskbar.elf: $(BUILD)/user/shell/taskbar/main.o $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(taskbar_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/startmenu.elf: $(BUILD)/sdk/apps/startmenu/main.o $(APP_SHIM)
+$(BUILD)/user/shell/startmenu/startmenu.elf: $(BUILD)/user/shell/startmenu/main.o $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(startmenu_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/statusbars.elf: $(BUILD)/sdk/apps/statusbars/main.o $(APP_SHIM)
+$(BUILD)/user/shell/statusbars/statusbars.elf: $(BUILD)/user/shell/statusbars/main.o $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(statusbars_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/calculator.elf: $(BUILD)/sdk/apps/calculator/main.o $(GUI_APPS) $(APP_SHIM)
+# ── ELF link rules for applications (user/apps/) ──────────────────────────
+$(BUILD)/user/apps/nogui_shell/nogui_shell.elf: $(BUILD)/user/apps/nogui_shell/main.o $(APP_SHIM)
+	@mkdir -p $(@D)
+	$(LD) $(LDFLAGS_APP) -Ttext $(nogui_shell_ADDR) -e _start -o $@ $^
+
+$(BUILD)/user/apps/calculator/calculator.elf: $(BUILD)/user/apps/calculator/main.o $(GUI_APPS) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(calculator_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/texteditor.elf: $(BUILD)/sdk/apps/texteditor/main.o $(GUI_APPS) $(APP_SHIM)
+$(BUILD)/user/apps/texteditor/texteditor.elf: $(BUILD)/user/apps/texteditor/main.o $(GUI_APPS) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(texteditor_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/filemanager.elf: $(BUILD)/sdk/apps/filemanager/main.o $(GUI_APPS) $(APP_SHIM)
+$(BUILD)/user/apps/filemanager/filemanager.elf: $(BUILD)/user/apps/filemanager/main.o $(GUI_APPS) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(filemanager_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/calendar.elf: $(BUILD)/sdk/apps/calendar/main.o $(GUI_APPS) $(APP_SHIM)
+$(BUILD)/user/apps/calendar/calendar.elf: $(BUILD)/user/apps/calendar/main.o $(GUI_APPS) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(calendar_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/settings.elf: $(BUILD)/sdk/apps/settings/main.o $(GUI_APPS) $(APP_SHIM)
+$(BUILD)/user/apps/settings/settings.elf: $(BUILD)/user/apps/settings/main.o $(GUI_APPS) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(settings_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/clock.elf: $(BUILD)/sdk/apps/clock/main.o $(GUI_APPS) $(APP_SHIM)
+$(BUILD)/user/apps/clock/clock.elf: $(BUILD)/user/apps/clock/main.o $(GUI_APPS) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(clock_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/sysmon.elf: $(BUILD)/sdk/apps/sysmon/main.o $(GUI_APPS) $(APP_SHIM)
+$(BUILD)/user/apps/sysmon/sysmon.elf: $(BUILD)/user/apps/sysmon/main.o $(GUI_APPS) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(sysmon_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/terminal.elf: $(BUILD)/sdk/apps/terminal/main.o $(GUI_WINDOW) $(APP_SHIM)
+$(BUILD)/user/apps/terminal/terminal.elf: $(BUILD)/user/apps/terminal/main.o $(GUI_WINDOW) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(terminal_ADDR) -e rbx_module_init -o $@ $^
 
-$(BUILD)/sdk/apps/imgview.elf: $(BUILD)/sdk/apps/imgview/main.o $(GUI_WINDOW) $(APP_SHIM)
+$(BUILD)/user/apps/imgview/imgview.elf: $(BUILD)/user/apps/imgview/main.o $(GUI_WINDOW) $(APP_SHIM)
 	@mkdir -p $(@D)
 	$(LD) $(LDFLAGS_APP) -Ttext $(imgview_ADDR) -e rbx_module_init -o $@ $^
-
-# ── ISO image ──────────────────────────────────────────────────────────────
-$(ISO): $(BIN) boot/grub.cfg
-	mkdir -p $(BUILD)/iso_root/boot/grub
-	cp $(BIN) $(BUILD)/iso_root/boot/
-	cp boot/grub.cfg $(BUILD)/iso_root/boot/grub/
-	grub-mkrescue -d /usr/lib/grub/i386-pc -o $(ISO) $(BUILD)/iso_root
-	rm -rf $(BUILD)/iso_root
 
 clean:
 	rm -rf $(BUILD)
 
 clean-assets:
-	rm -f assets/font/font_8x16.h assets/icons/icons_32.h
+	rm -f assets/gen/font_8x16.h assets/gen/icons_32.h
 
-run: $(ISO)
-	qemu-system-i386 -cdrom $(ISO)
+run: $(IMAGE)
+	$(QEMU) $(IMAGE)
 
 gui:
 	$(MAKE) clean
