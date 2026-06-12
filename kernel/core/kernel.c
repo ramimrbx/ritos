@@ -57,9 +57,44 @@ typedef struct {
 
 #define MBI_FLAG_FB (1u << 12)
 
+/* Multiboot2 boot information: a sized header followed by 8-byte-aligned
+ * tags. Tag type 8 carries the framebuffer (this is the only path a UEFI
+ * bootloader hands us a screen on — there is no VBE under EFI). */
+#define MB2_MAGIC       0x36D76289u
+#define MB2_TAG_END     0
+#define MB2_TAG_FB      8
+
+typedef struct {
+    uint32_t type;
+    uint32_t size;
+    uint64_t addr;
+    uint32_t pitch;
+    uint32_t width;
+    uint32_t height;
+    uint8_t  bpp;
+    uint8_t  fb_type;            /* 1 = direct RGB */
+    uint8_t  reserved[2];
+} __attribute__((packed)) mb2_tag_fb_t;
+
 /* Forward declarations of C++ system entry points */
 void ritos_init_framework(void);
 void ritos_launch_gui(void);
+
+static void try_fb_init(uint64_t addr, uint32_t pitch, uint32_t w, uint32_t h,
+                        uint8_t bpp, uint8_t type) {
+    serial_puts("fb_addr="); serial_hex((uint32_t)addr);
+    serial_puts(" pitch="); serial_hex(pitch);
+    serial_puts(" w="); serial_hex(w);
+    serial_puts(" h="); serial_hex(h);
+    serial_puts(" bpp="); serial_hex(bpp);
+    serial_puts(" type="); serial_hex(type);
+    serial_puts("\r\n");
+    if (type == 1 && bpp >= 24) {
+        fb_init(addr, pitch, w, h, bpp);
+        serial_puts("fb_init done, fb_is_available=");
+        serial_hex(fb_is_available()); serial_puts("\r\n");
+    }
+}
 
 void kernel_main(uint32_t magic, void* mbi_ptr) {
     serial_init();
@@ -70,55 +105,55 @@ void kernel_main(uint32_t magic, void* mbi_ptr) {
     /* 1. Initialize heap first (fb_init needs kmalloc) */
     heap_init();
 
-    /* 2. Try to set up VESA framebuffer */
+    /* 2. Try to set up the framebuffer from the boot info */
     if (magic == 0x2BADB002 && mbi_ptr != 0) {
+        /* Multiboot 1 (BIOS / GRUB legacy path) */
         multiboot_info_t* mbi = (multiboot_info_t*)mbi_ptr;
         serial_puts("mbi_flags="); serial_hex(mbi->flags); serial_puts("\r\n");
-
         if (mbi->flags & MBI_FLAG_FB) {
-            serial_puts("fb_addr="); serial_hex((uint32_t)mbi->framebuffer_addr);
-            serial_puts(" pitch="); serial_hex(mbi->framebuffer_pitch);
-            serial_puts(" w="); serial_hex(mbi->framebuffer_width);
-            serial_puts(" h="); serial_hex(mbi->framebuffer_height);
-            serial_puts(" bpp="); serial_hex(mbi->framebuffer_bpp);
-            serial_puts(" type="); serial_hex(mbi->framebuffer_type);
-            serial_puts("\r\n");
+            try_fb_init(mbi->framebuffer_addr, mbi->framebuffer_pitch,
+                        mbi->framebuffer_width, mbi->framebuffer_height,
+                        mbi->framebuffer_bpp, mbi->framebuffer_type);
         } else {
             serial_puts("no framebuffer flag in mbi\r\n");
         }
-
-        if ((mbi->flags & MBI_FLAG_FB) &&
-            mbi->framebuffer_type == 1 &&   /* type 1 = RGB linear */
-            mbi->framebuffer_bpp >= 24) {
-            fb_init(mbi->framebuffer_addr,
-                    mbi->framebuffer_pitch,
-                    mbi->framebuffer_width,
-                    mbi->framebuffer_height,
-                    mbi->framebuffer_bpp);
-            serial_puts("fb_init done, fb_is_available=");
-            serial_hex(fb_is_available()); serial_puts("\r\n");
+    } else if (magic == MB2_MAGIC && mbi_ptr != 0) {
+        /* Multiboot 2 (UEFI / GRUB EFI path): walk the tag list */
+        serial_puts("multiboot2 info\r\n");
+        uint8_t* p   = (uint8_t*)mbi_ptr;
+        uint32_t total = *(uint32_t*)p;
+        uint8_t* end = p + total;
+        p += 8;                                   /* total_size + reserved */
+        while (p + 8 <= end) {
+            uint32_t type = *(uint32_t*)p;
+            uint32_t size = *(uint32_t*)(p + 4);
+            if (type == MB2_TAG_END || size < 8) break;
+            if (type == MB2_TAG_FB && size >= sizeof(mb2_tag_fb_t)) {
+                mb2_tag_fb_t* fb = (mb2_tag_fb_t*)p;
+                try_fb_init(fb->addr, fb->pitch, fb->width, fb->height,
+                            fb->bpp, fb->fb_type);
+            }
+            p += (size + 7) & ~7u;                /* tags are 8-aligned */
         }
     } else {
-        serial_puts("not MB1 or no mbi\r\n");
+        serial_puts("unknown boot magic / no mbi\r\n");
     }
 
     /* 3. Boot splash then launch GUI */
     if (fb_is_available()) {
         serial_puts("drawing boot splash\r\n");
-        fb_clear_back(0xFF0D1B3Eu);  /* deep navy */
+        fb_clear_back(0xFF0C0C0Cu);  /* near-black, Windows-style boot */
 
-        /* Centered splash card */
-        int cx = (fb_get_width()  - 240) / 2;
-        int cy = (fb_get_height() - 72)  / 2;
-        /* Outer glow */
-        fb_fill_rounded_rect(cx - 4, cy - 4, 248, 80, 10, 0xFF1A2A5Eu);
-        /* Card body */
-        fb_fill_rounded_rect(cx, cy, 240, 72, 8, 0xFF1E2D5Au);
-        /* Top accent bar */
-        fb_fill_rounded_rect(cx, cy, 240, 4, 2, 0xFF5B7FFFu);
-        /* Logo text */
-        fb_draw_string("RitOS",      0xFF8BAEF0u, 0xFF1E2D5Au, cx + 8, cy + 12, 0);
-        fb_draw_string("Loading...", 0xFF5E7BC4u, 0xFF1E2D5Au, cx + 8, cy + 40, 0);
+        /* Centered logo + loading text, Instrument Sans */
+        int sw = fb_get_width(), sh = fb_get_height();
+        int tw = fb_text_width("RitOS", FB_FONT_H1);
+        fb_draw_text("RitOS", (sw - tw) / 2, sh / 2 - 80, FB_FONT_H1, 0xFFFFFFFFu);
+
+        /* Soft spinner dots */
+        int dots_y = sh / 2 + 20;
+        for (int i = 0; i < 5; i++)
+            fb_fill_circle(sw / 2 - 28 + i * 14, dots_y, 3,
+                           i == 2 ? 0xFFFFFFFFu : 0x60FFFFFFu);
 
         fb_flush();
         serial_puts("boot splash done\r\n");

@@ -106,10 +106,14 @@ APP_SHIM   = $(BUILD)/userspace/runtime/application_shim.o $(BUILD)/kernel/libra
 GUI_WINDOW = $(BUILD)/userspace/libraries/graphical_interface/source/window.o
 GUI_APPS   = $(BUILD)/userspace/libraries/graphical_interface/source/application_windows.o $(GUI_WINDOW)
 
-all: assets/generated/font_8x16.h assets/generated/icons_32.h $(BIN) $(IMAGE)
+all: assets/generated/font_8x16.h assets/generated/icons_32.h assets/generated/instrument_font.h $(BIN) $(IMAGE)
 
 assets/generated/font_8x16.h:
 	python3 tools/generate_font.py
+
+# Instrument Sans system font, baked to AA coverage atlases at build time
+assets/generated/instrument_font.h: tools/generate_system_font.py
+	python3 tools/generate_system_font.py
 
 assets/generated/icons_32.h:
 	python3 tools/generate_icons.py

@@ -459,6 +459,40 @@ int fat_write_file(const char* name, const char* data, uint32_t size) {
 	return storage_write_sectors(dir_sector, 1, g_sector);
 }
 
+int fat_delete_file(const char* name) {
+	if (!fat_volume_ready()) return 0;
+	uint8_t name83[11];
+	if (!name_to_entry(name, name83)) return 0;
+	uint32_t dir_sector; int dir_offset; uint8_t entry[DIR_ENTRY_BYTES];
+	if (!find_entry(name83, &dir_sector, &dir_offset, entry)) return 0;
+
+	uint32_t cluster = read_u16(entry + 26) |
+	                   ((g_volume.fat_type == FAT_TYPE_32) ? ((uint32_t)read_u16(entry + 20) << 16) : 0);
+	free_chain(cluster);
+
+	if (!storage_read_sectors(dir_sector, 1, g_sector)) return 0;
+	g_sector[dir_offset] = 0xE5; /* deleted marker */
+	return storage_write_sectors(dir_sector, 1, g_sector);
+}
+
+int fat_rename_file(const char* old_name, const char* new_name) {
+	if (!fat_volume_ready()) return 0;
+	uint8_t old83[11], new83[11];
+	if (!name_to_entry(old_name, old83)) return 0;
+	if (!name_to_entry(new_name, new83)) return 0;
+
+	/* Refuse to clobber an existing file of the new name */
+	uint32_t s; int o; uint8_t e[DIR_ENTRY_BYTES];
+	if (find_entry(new83, &s, &o, e)) return 0;
+
+	uint32_t dir_sector; int dir_offset; uint8_t entry[DIR_ENTRY_BYTES];
+	if (!find_entry(old83, &dir_sector, &dir_offset, entry)) return 0;
+
+	if (!storage_read_sectors(dir_sector, 1, g_sector)) return 0;
+	for (int i = 0; i < 11; i++) g_sector[dir_offset + i] = new83[i];
+	return storage_write_sectors(dir_sector, 1, g_sector);
+}
+
 /* ── Description for the `disk` command ───────────────────────────────── */
 
 static void append(char* out, int max, int* at, const char* text) {

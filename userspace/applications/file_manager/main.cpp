@@ -89,9 +89,16 @@ static const SideItem k_side[7] = {
 	{ "Documents", "/users/ramim/documents/" },
 	{ "Launcher",  "/users/ramim/launcher/" },
 	{ "System",    "/system/" },
-	{ "Volumes",   "/volumes/" },
+	{ "This PC",   "/volumes/" },
 	{ "Temporary", "/temporary/" },
 };
+
+/* Files under this prefix are a live mirror of the physical disk's FAT
+ * root directory: every create/write/rename/delete is replayed on disk. */
+#define DISK_PREFIX "/volumes/disk/"
+
+static bool path_on_disk(const char* p) { return sprefix(p, DISK_PREFIX); }
+static const char* disk_basename(const char* p) { return p + slen(DISK_PREFIX); }
 
 class FileExplorerWindow : public ritos::Window {
 	char  m_cwd[64];
@@ -240,8 +247,10 @@ public:
 	}
 
 	void new_file() {
-		char nn[64]; make_unique(nn, "new_file", ".txt");
-		rit::VFS::create_file(nn, "");
+		/* FAT 8.3 names: keep the base short when creating on the disk */
+		char nn[64]; make_unique(nn, path_on_disk(m_cwd) ? "file" : "new_file", ".txt");
+		rit::VFS::create_file(nn, " ");
+		if (path_on_disk(nn)) g_api->storage_export(nn);
 		refresh();
 	}
 	void new_folder() {
@@ -283,7 +292,12 @@ public:
 			scpy(dest, alt, 64);
 		}
 		g_api->vfs_write_file(dest, data, len);
-		if (m_clip_cut) { rit::VFS::delete_file(m_clip); m_clip[0]='\0'; }
+		if (path_on_disk(dest)) g_api->storage_export(dest);
+		if (m_clip_cut) {
+			if (path_on_disk(m_clip)) g_api->storage_delete(disk_basename(m_clip));
+			rit::VFS::delete_file(m_clip);
+			m_clip[0]='\0';
+		}
 		refresh();
 	}
 	void delete_selected() {
@@ -298,8 +312,12 @@ public:
 			char doomed[16][64]; int dn = 0;
 			for (int i = 0; i < n && dn < 16; i++)
 				if (sprefix(files[i], pre)) scpy(doomed[dn++], files[i], 64);
-			for (int i = 0; i < dn; i++) rit::VFS::delete_file(doomed[i]);
+			for (int i = 0; i < dn; i++) {
+				if (path_on_disk(doomed[i])) g_api->storage_delete(disk_basename(doomed[i]));
+				rit::VFS::delete_file(doomed[i]);
+			}
 		} else {
+			if (path_on_disk(e.full)) g_api->storage_delete(disk_basename(e.full));
 			rit::VFS::delete_file(e.full);
 		}
 		m_selected = -1;
@@ -320,6 +338,9 @@ public:
 		int l = slen(np);
 		for (int k = 0; m_rename[k] && l < 63; k++) np[l++] = m_rename[k];
 		np[l] = '\0';
+		if (path_on_disk(m_entries[m_selected].full))
+			g_api->storage_rename(disk_basename(m_entries[m_selected].full),
+			                      disk_basename(np));
 		rit::VFS::rename_file(m_entries[m_selected].full, np);
 		m_rename_mode = false;
 		refresh();
@@ -330,7 +351,12 @@ public:
 	int list_y() const { return content_y() + TB_H + AB_H + HDR_H; }
 	int list_w() const { return pw() - SIDE_W - 2 - SCROLL_W; }
 	int list_h() const { return content_h() - TB_H - AB_H - HDR_H - STAT_H; }
-	int rows_visible() const { int r = list_h() / ROW_H; return r < 1 ? 1 : r; }
+	/* "This PC" shows a drive panel above the file rows */
+	int drive_card_h() const { return seq(m_cwd, "/volumes/") ? 104 : 0; }
+	int rows_visible() const {
+		int r = (list_h() - drive_card_h()) / ROW_H;
+		return r < 1 ? 1 : r;
+	}
 
 	/* ── drawing ──────────────────────────────────────────────────────── */
 	void draw() override {
@@ -427,7 +453,7 @@ public:
 					int sl2 = i - seg_start; if (sl2 > 43) sl2 = 43;
 					for (int k = 0; k < sl2; k++) seg[k] = m_cwd[seg_start + k];
 					seg[sl2] = '\0';
-					if (cx2 + sl2*8 < x + bb_w - 8)
+					if (cx2 + fluent::text_w(seg) < x + bb_w - 8)
 						cx2 += draw_crumb(seg, cx2, y, mx, my);
 				}
 				seg_start = i + 1;
@@ -443,7 +469,7 @@ public:
 		if (m_search_len > 0) {
 			fluent::text(m_search, fluent::TEXT, sx + 26, y + 6);
 			if (m_search_focus)
-				fluent::rect(sx + 26 + m_search_len*8 + 1, y + 5, 1, 18, fluent::TEXT);
+				fluent::rect(sx + 27 + fluent::text_w(m_search), y + 5, 1, 18, fluent::TEXT);
 		} else {
 			fluent::text("Search", fluent::TEXT_DIS, sx + 26, y + 6);
 			if (m_search_focus)
@@ -452,7 +478,7 @@ public:
 	}
 
 	int draw_crumb(const char* s, int x, int y, int mx, int my) {
-		int w = slen(s) * 8 + 8;
+		int w = fluent::text_w(s) + 8;
 		if (in(mx, my, x - 4, y + 3, w, 22))
 			fluent::rrect(x - 4, y + 3, w, 22, 3, fluent::HOVER);
 		fluent::text(s, fluent::TEXT, x, y + 6);
@@ -479,6 +505,40 @@ public:
 		}
 	}
 
+	/* Detected drive panel: model, capacity, filesystem + a Mount button */
+	void draw_drive_card(int lx, int ly, int lw, int mx, int my) {
+		int cx = lx + 8, cy = ly + 8, cw = lw - 16, ch = 88;
+		fluent::rrect_border(cx, cy, cw, ch, 7, fluent::STROKE, fluent::CARD_ALT);
+
+		/* drive glyph */
+		fluent::rrect_border(cx + 14, cy + 28, 40, 26, 4, fluent::TEXT_SEC, fluent::CARD);
+		fluent::rect(cx + 44, cy + 46, 5, 4, fluent::ACCENT);
+
+		char info[256];
+		int operable = g_api->storage_describe(info, 256);
+		(void)operable;
+		/* split into lines, draw up to 4 */
+		int line = 0, start = 0;
+		for (int i = 0; line < 4; i++) {
+			if (info[i] == '\n' || info[i] == '\0') {
+				char lb[64];
+				int n = i - start; if (n > 63) n = 63;
+				for (int k = 0; k < n; k++) lb[k] = info[start + k];
+				lb[n] = '\0';
+				int maxc = (cw - 200) / 8;
+				if (n > maxc && maxc > 3) lb[maxc] = '\0';
+				fluent::text(lb, line == 0 ? fluent::TEXT : fluent::TEXT_SEC,
+				             cx + 68, cy + 10 + line * 19);
+				line++;
+				start = i + 1;
+				if (info[i] == '\0') break;
+			}
+		}
+
+		bool hov = in(mx, my, cx + cw - 122, cy + 28, 110, 32);
+		fluent::button(cx + cw - 122, cy + 28, 110, 32, "Mount", hov, true);
+	}
+
 	void draw_list(int mx, int my) {
 		int lx = list_x(), ly = list_y(), lw = list_w(), lh = list_h();
 		int hy = ly - HDR_H;
@@ -490,6 +550,12 @@ public:
 		fluent::text("Type", fluent::TEXT_SEC, col_type, hy + 5);
 		fluent::text("Size", fluent::TEXT_SEC, col_size, hy + 5);
 		rit::System::fb_draw_hline_px(lx, hy + HDR_H - 1, lw + SCROLL_W, fluent::STROKE);
+
+		if (drive_card_h()) {
+			draw_drive_card(lx, ly, lw, mx, my);
+			ly += drive_card_h();
+			lh -= drive_card_h();
+		}
 
 		int vis = rows_visible();
 		for (int r = 0; r < vis; r++) {
@@ -532,13 +598,13 @@ public:
 				int sl2 = slen(sb);
 				sb[sl2]=' '; sb[sl2+1]='B'; sb[sl2+2]='\0';
 				fluent::text(sb, fluent::TEXT_SEC,
-				             lx + lw - 12 - slen(sb)*8, ry + 6);
+				             lx + lw - 12 - fluent::text_w(sb), ry + 6);
 			}
 		}
 
 		if (m_count == 0)
-			fluent::text("This folder is empty", fluent::TEXT_DIS,
-			             lx + (lw - 20*8)/2, ly + 24);
+			fluent::text_centered("This folder is empty", fluent::TEXT_DIS,
+			                      lx, lw, ly + 24);
 
 		/* scrollbar */
 		if (m_count > vis) {
@@ -565,7 +631,8 @@ public:
 		fluent::text(buf, fluent::TEXT_SEC, wx + 14, sy + 5);
 
 		if (m_selected >= 0 && m_selected < m_count)
-			fluent::text("1 item selected", fluent::TEXT_SEC, wx + 14 + (l+8)*8, sy + 5);
+			fluent::text("1 item selected", fluent::TEXT_SEC,
+			             wx + 30 + fluent::text_w(buf), sy + 5);
 		if (m_clip[0])
 			fluent::text(m_clip_cut ? "clipboard: cut" : "clipboard: copy",
 			             fluent::TEXT_DIS, wx + ww - 140, sy + 5);
@@ -574,12 +641,12 @@ public:
 	void draw_rename_modal() {
 		int mw = 320, mh = 130;
 		int x = px() + (pw() - mw) / 2, y = py() + (ph() - mh) / 2;
-		fluent::blend(x + 3, y + 5, mw, mh, 0x30000000u);
+		fluent::shadow(x, y + 4, mw, mh, 8, 18, 0x50000000u);
 		fluent::rrect_border(x, y, mw, mh, 8, fluent::BORDER, fluent::MENU_BG);
-		fluent::text("Rename", fluent::TEXT, x + 16, y + 14);
+		fluent::text("Rename", fluent::TEXT, x + 16, y + 14, fluent::FONT_BOLD);
 		fluent::rrect_border(x + 16, y + 42, mw - 32, 30, 5, fluent::ACCENT, fluent::CARD);
 		fluent::text(m_rename, fluent::TEXT, x + 24, y + 49);
-		fluent::rect(x + 24 + m_rename_len*8 + 1, y + 48, 1, 18, fluent::TEXT);
+		fluent::rect(x + 25 + fluent::text_w(m_rename), y + 48, 1, 18, fluent::TEXT);
 		bool hov_ok = false, hov_ca = false;   /* drawn flat; hover unimportant in modal */
 		fluent::button(x + mw - 196, y + mh - 44, 88, 30, "OK", hov_ok, true);
 		fluent::button(x + mw - 100, y + mh - 44, 88, 30, "Cancel", hov_ca, false);
@@ -643,10 +710,11 @@ public:
 			int sx = wx + ww - 12 - search_w;
 			if (in(mx, my, sx, y, search_w, h)) { m_search_focus = true; return; }
 
-			/* breadcrumbs: root crumb, then each segment */
+			/* breadcrumbs: root crumb, then each segment (text metrics
+			 * must mirror draw_breadcrumbs/draw_crumb exactly) */
 			int bb_w = sx - 8 - x;
 			int cx2 = x + 10;
-			int w0 = slen("RitOS") * 8 + 8;
+			int w0 = fluent::text_w("RitOS") + 8;
 			if (in(mx, my, cx2 - 4, y + 3, w0, 22)) { navigate("/", true); return; }
 			cx2 += w0 + 2;
 			int cl = slen(m_cwd);
@@ -655,9 +723,12 @@ public:
 				if (i == cl || m_cwd[i] == '/') {
 					if (i > seg_start) {
 						cx2 += 14;
-						int sl2 = i - seg_start;
-						int wseg = sl2 * 8 + 8;
-						if (cx2 + sl2*8 < x + bb_w - 8) {
+						int sl2 = i - seg_start; if (sl2 > 43) sl2 = 43;
+						char seg[44];
+						for (int k = 0; k < sl2; k++) seg[k] = m_cwd[seg_start + k];
+						seg[sl2] = '\0';
+						int wseg = fluent::text_w(seg) + 8;
+						if (cx2 + fluent::text_w(seg) < x + bb_w - 8) {
 							if (in(mx, my, cx2 - 4, y + 3, wseg, 22)) {
 								char np[64];
 								int nl2 = i + 1; if (nl2 > 63) nl2 = 63;
@@ -692,8 +763,20 @@ public:
 		/* status bar: nothing clickable */
 		if (my >= py() + ph() - STAT_H) return;
 
-		/* scrollbar track */
+		/* drive panel ("This PC"): Mount button imports the FAT root */
 		int lx = list_x(), ly = list_y(), lw = list_w(), lh = list_h();
+		if (drive_card_h()) {
+			int cx = lx + 8, cy = ly + 8, cw = lw - 16;
+			if (in(mx, my, cx + cw - 122, cy + 28, 110, 32)) {
+				g_api->storage_import();
+				refresh();
+				return;
+			}
+			ly += drive_card_h();
+			lh -= drive_card_h();
+		}
+
+		/* scrollbar track */
 		int vis = rows_visible();
 		if (mx >= lx + lw && m_count > vis) {
 			int max_scroll = m_count - vis;

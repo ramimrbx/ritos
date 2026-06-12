@@ -99,8 +99,10 @@ extern "C" rbx_module* rbx_module_init(const RitOS_API* api, const Desktop_Inter
             int cx = sw - CLOCK_W;
             bool clk_hov = row && mx >= cx;
             if (clk_hov) fluent::rrect(cx - 4, by, CLOCK_W, BTN_H, 4, fluent::HOVER);
-            fluent::text(tb, fluent::TEXT, cx + (CLOCK_W - 5*8) / 2 - 4, ty + 8);
-            fluent::text(db, fluent::TEXT, cx + (CLOCK_W - 10*8) / 2 - 4, ty + 26);
+            fluent::text_centered(tb, fluent::TEXT, cx - 4, CLOCK_W, ty + 7,
+                                  fluent::FONT_SMALL);
+            fluent::text_centered(db, fluent::TEXT, cx - 4, CLOCK_W, ty + 25,
+                                  fluent::FONT_SMALL);
         } else {
             /* VGA fallback */
             for (int x = 0; x < 80; x++) g_api->draw_char(' ', 15, 1, x, 24);

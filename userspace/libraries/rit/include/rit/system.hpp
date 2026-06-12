@@ -82,6 +82,13 @@ public:
 	static int  fb_get_height();
 	static int  fb_is_avail();
 
+	// Instrument Sans text engine + AA shape extras
+	static void fb_draw_text(const char* text, int x, int y, int font, uint32_t argb);
+	static int  fb_text_width(const char* text, int font);
+	static int  fb_font_height(int font);
+	static void fb_stroke_rounded_rect(int x, int y, int w, int h, int r, uint32_t argb);
+	static void fb_shadow_rounded_rect(int x, int y, int w, int h, int r, int blur, uint32_t argb);
+
 	// Get the OS API function table
 	static const RitOS_API* get_api_table();
 

@@ -42,7 +42,18 @@ constexpr uint32_t MENU_BG     = 0xFAF9F9F9u;
 constexpr int TITLEBAR_PX = 32;   /* titlebar height in pixels  */
 constexpr int CAPTION_W   = 46;   /* caption button width       */
 
-inline int text_w(const char* s) { int n = 0; while (s[n]) n++; return n * 8; }
+/* System font faces (Instrument Sans, antialiased) */
+constexpr int FONT_SMALL = RITOS_FONT_SMALL;
+constexpr int FONT_BODY  = RITOS_FONT_BODY;
+constexpr int FONT_BOLD  = RITOS_FONT_BODY_BOLD;
+constexpr int FONT_TITLE = RITOS_FONT_TITLE;
+constexpr int FONT_H2    = RITOS_FONT_H2;
+constexpr int FONT_H1    = RITOS_FONT_H1;
+
+inline int text_w(const char* s, int font = FONT_BODY)
+    { return rit::System::fb_text_width(s, font); }
+inline int font_h(int font = FONT_BODY)
+    { return rit::System::fb_font_height(font); }
 
 /* ── Basic shapes ─────────────────────────────────────────────────────── */
 inline void rect(int x, int y, int w, int h, uint32_t c)
@@ -51,16 +62,24 @@ inline void blend(int x, int y, int w, int h, uint32_t c)
     { rit::System::fb_fill_rect_blend(x, y, w, h, c); }
 inline void rrect(int x, int y, int w, int h, int r, uint32_t c)
     { rit::System::fb_fill_rounded_rect(x, y, w, h, r, c); }
-inline void text(const char* s, uint32_t fg, int x, int y)
-    { rit::System::fb_draw_string_px(s, fg, 0, x, y, 1); }
+inline void stroke(int x, int y, int w, int h, int r, uint32_t c)
+    { rit::System::fb_stroke_rounded_rect(x, y, w, h, r, c); }
+inline void shadow(int x, int y, int w, int h, int r, int blur, uint32_t c)
+    { rit::System::fb_shadow_rounded_rect(x, y, w, h, r, blur, c); }
+inline void text(const char* s, uint32_t fg, int x, int y, int font = FONT_BODY)
+    { rit::System::fb_draw_text(s, x, y, font, fg); }
 inline void text2x(const char* s, uint32_t fg, int x, int y)
-    { rit::System::fb_draw_string_scaled(s, fg, x, y, 2); }
+    { rit::System::fb_draw_text(s, x, y, FONT_H2, fg); }
+/* Centre a string horizontally inside [x, x+w) */
+inline void text_centered(const char* s, uint32_t fg, int x, int w, int y,
+                          int font = FONT_BODY)
+    { rit::System::fb_draw_text(s, x + (w - text_w(s, font)) / 2, y, font, fg); }
 
-/* 1px-stroke rounded rectangle: outer fill then inner fill */
+/* 1px-stroke rounded rectangle: AA fill + AA outline */
 inline void rrect_border(int x, int y, int w, int h, int r,
-                         uint32_t stroke, uint32_t fill) {
-    rrect(x, y, w, h, r, stroke);
-    rrect(x + 1, y + 1, w - 2, h - 2, r > 1 ? r - 1 : r, fill);
+                         uint32_t stroke_c, uint32_t fill) {
+    rrect(x, y, w, h, r, fill);
+    stroke(x, y, w, h, r, stroke_c);
 }
 
 /* Win11-style button (rounded 4px, subtle stroke) */
@@ -69,8 +88,10 @@ inline void button(int x, int y, int w, int h, const char* label,
     uint32_t bg = accent ? (hovered ? ACCENT_HOV : ACCENT)
                          : (hovered ? HOVER : CARD_ALT);
     uint32_t fg = accent ? TEXT_WHITE : TEXT;
-    rrect_border(x, y, w, h, 5, accent ? bg : BORDER_DIM, bg);
-    text(label, fg, x + (w - text_w(label)) / 2, y + (h - 16) / 2);
+    rrect(x, y, w, h, 4, bg);
+    if (!accent) stroke(x, y, w, h, 4, 0x30000000u);
+    text(label, fg, x + (w - text_w(label, FONT_TITLE)) / 2,
+         y + (h - font_h(FONT_TITLE)) / 2, FONT_TITLE);
 }
 
 /* ── Procedural glyphs (all drawn into a size*size box at x,y) ────────── */
@@ -168,13 +189,16 @@ inline void arrow_up(int x, int y, int size, uint32_t c = TEXT_SEC) {
     rect(x + half - 1, y + 2, 2, size - 4, c);
 }
 
-/* Close cross, centred in a box */
+/* Close cross, centred in a box: 1px diagonals with soft AA shoulders */
 inline void glyph_cross(int cx, int cy, int arm, uint32_t c) {
+    uint32_t soft = (c & 0x00FFFFFF) | 0x58000000u;
     for (int d = -arm; d <= arm; d++) {
         rect(cx + d, cy + d, 1, 1, c);
-        rect(cx + d + 1, cy + d, 1, 1, c);
         rect(cx + d, cy - d, 1, 1, c);
-        rect(cx + d + 1, cy - d, 1, 1, c);
+        blend(cx + d + 1, cy + d, 1, 1, soft);
+        blend(cx + d - 1, cy + d, 1, 1, soft);
+        blend(cx + d + 1, cy - d, 1, 1, soft);
+        blend(cx + d - 1, cy - d, 1, 1, soft);
     }
 }
 

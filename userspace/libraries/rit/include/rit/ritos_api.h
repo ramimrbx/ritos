@@ -100,7 +100,39 @@ struct RitOS_API {
 	                              int x, int y, int scale);
 	/* Draw the embedded wallpaper over the whole back buffer; 0 = none */
 	int (*fb_draw_wallpaper)(void);
+
+	// ── Cursor overlay (stamped into VRAM at flush; cheap to move) ─────────
+	void (*fb_set_cursor_image)(const uint32_t* argb, int w, int h);
+	void (*fb_set_cursor_pos)(int x, int y);
+
+	// ── Storage CRUD (FAT16/32 root directory on the physical disk) ────────
+	/* Delete a file on the disk by 8.3 name; 1 on success */
+	int (*storage_delete)(const char* name);
+	/* Rename a file on the disk (8.3 names); 1 on success */
+	int (*storage_rename)(const char* old_name, const char* new_name);
+
+	// ── Instrument Sans text engine (antialiased, proportional) ────────────
+	/* x,y is the top-left of the line box; font is a RITOS_FONT_* id */
+	void (*fb_draw_text)(const char* text, int x, int y, int font, uint32_t argb);
+	int  (*fb_text_width)(const char* text, int font);
+	int  (*fb_font_height)(int font);
+
+	// ── Anti-aliased shape extras ───────────────────────────────────────────
+	/* 1px AA outline of a rounded rect (colour may carry alpha) */
+	void (*fb_stroke_rounded_rect)(int x, int y, int w, int h, int r,
+	                               uint32_t argb);
+	/* Soft analytic drop shadow around (outside) a rounded rect */
+	void (*fb_shadow_rounded_rect)(int x, int y, int w, int h, int r,
+	                               int blur, uint32_t argb);
 };
+
+/* System font faces (Instrument Sans, baked at build time) */
+#define RITOS_FONT_SMALL      0   /* Regular 13px — captions, status  */
+#define RITOS_FONT_BODY       1   /* Regular 15px — default UI text   */
+#define RITOS_FONT_BODY_BOLD  2   /* SemiBold 15px — emphasis         */
+#define RITOS_FONT_TITLE      3   /* Medium 14px — titlebars, buttons */
+#define RITOS_FONT_H2         4   /* SemiBold 21px — headings         */
+#define RITOS_FONT_H1         5   /* SemiBold 38px — hero numbers     */
 
 #ifdef __cplusplus
 }

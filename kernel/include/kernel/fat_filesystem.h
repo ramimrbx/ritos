@@ -34,6 +34,12 @@ int fat_read_file(const char* name, char* buffer, uint32_t buffer_max, uint32_t*
  * Returns 1 on success. */
 int fat_write_file(const char* name, const char* data, uint32_t size);
 
+/* Delete a root-directory file by 8.3 name; 1 on success */
+int fat_delete_file(const char* name);
+
+/* Rename a root-directory file (8.3 names, no overwrite); 1 on success */
+int fat_rename_file(const char* old_name, const char* new_name);
+
 #ifdef __cplusplus
 }
 #endif

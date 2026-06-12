@@ -210,15 +210,17 @@ class Desktop {
         } else {
             g_api->fb_fill_rounded_rect(ix, iy, ICON_PX, ICON_PX, 8, fluent::ACCENT);
             char ch[2] = { sc.label[0], '\0' };
-            g_api->fb_draw_string_scaled(ch, 0xFFFFFFFFu, ix + 16, iy + 8, 2);
+            int cw = g_api->fb_text_width(ch, RITOS_FONT_H2);
+            g_api->fb_draw_text(ch, ix + (ICON_PX - cw) / 2, iy + 10,
+                                RITOS_FONT_H2, 0xFFFFFFFFu);
         }
         /* Label centred below the icon with a soft shadow */
         const char* lbl = sc.label;
-        int llen = 0; while (lbl[llen]) llen++;
-        int lx = sx + (SLOT_W - 8 - llen * 8) / 2; if (lx < sx - 14) lx = sx - 14;
+        int lw = g_api->fb_text_width(lbl, RITOS_FONT_SMALL);
+        int lx = sx + (SLOT_W - 8 - lw) / 2; if (lx < sx - 14) lx = sx - 14;
         int ly = iy + ICON_PX + 6;
-        g_api->fb_draw_string_px(lbl, C_LABEL_SH, 0, lx + 1, ly + 1, 1);
-        g_api->fb_draw_string_px(lbl, C_LABEL,    0, lx,     ly,     1);
+        g_api->fb_draw_text(lbl, lx + 1, ly + 1, RITOS_FONT_SMALL, C_LABEL_SH);
+        g_api->fb_draw_text(lbl, lx,     ly,     RITOS_FONT_SMALL, C_LABEL);
     }
 
 public:
@@ -360,7 +362,7 @@ public:
             if (px_x >= sm_x() && px_x < sm_x() + sm_w() &&
                 px_y >= sm_y() && px_y < sm_y() + sm_h()) {
                 if (m_startmenu) m_startmenu->handle_click(m_startmenu->instance, px_x, px_y);
-                draw(); return;
+                return;
             }
             m_start_menu_open = false;
             /* fall through: the click also acts on whatever is below */
@@ -369,7 +371,7 @@ public:
         /* Taskbar (bottom 48px) */
         if (px_y >= sh - fluent::TASKBAR_H) {
             if (m_taskbar) m_taskbar->handle_click(m_taskbar->instance, px_x, px_y);
-            draw(); return;
+            return;
         }
 
         /* Window hit test (pixel-accurate) */
@@ -409,7 +411,7 @@ public:
             } else {
                 w->handle_click(px_x, px_y);
             }
-            draw(); return;
+            return;
         }
 
         /* Desktop shortcut icons */
@@ -421,7 +423,6 @@ public:
                 return;
             }
         }
-        draw();
     }
 
     void handle_mouse_move(int px_x, int px_y) {
@@ -436,10 +437,44 @@ public:
         if (ny < 0)              ny = 0;
         if (ny > max_row)        ny = max_row;
         m_dragged_window->set_position(nx, ny);
-        draw();
     }
 
     void handle_mouse_up() { m_dragged_window = nullptr; }
+
+    bool is_dragging() const { return m_dragged_window != nullptr; }
+
+    /* Zones where pointer hover changes what is on screen — moving the
+     * mouse there needs a real redraw; anywhere else only the (cheap)
+     * kernel cursor overlay moves. */
+    bool in_hot_zone(int px_x, int px_y) const {
+        if (!g_api->fb_is_available()) return false;
+        if (m_start_menu_open) return true;
+        if (px_y >= g_api->fb_get_height() - fluent::TASKBAR_H) return true;
+        /* Desktop shortcut hover */
+        for (int i = 0; i < g_shortcut_count; i++) {
+            int sx = slot_px(i), sy = slot_py(i);
+            if (px_x >= sx && px_x < sx + SLOT_W - 8 &&
+                px_y >= sy && px_y < sy + SLOT_H - 6) return true;
+        }
+        /* Caption-button hover on the topmost window under the pointer */
+        for (int i = m_window_count - 1; i >= 0; i--) {
+            ritos::Window* w = m_windows[i];
+            if (!w || !w->is_visible() || w->is_minimized()) continue;
+            int wx = w->get_x()*8,     wy = w->get_y()*16;
+            int ww = w->get_width()*8, wh = w->get_height()*16;
+            if (px_x < wx || px_x >= wx+ww || px_y < wy || px_y >= wy+wh) continue;
+            return px_y < wy + ritos::kTitlebarPx;
+        }
+        return false;
+    }
+
+    /* Seconds tick: only the taskbar clock changed — repaint just it */
+    void draw_taskbar_tick() {
+        if (g_api->fb_is_available() && m_taskbar)
+            m_taskbar->draw(m_taskbar->instance);
+        else
+            draw();
+    }
 
     void draw() {
         if (g_api->fb_is_available()) {
@@ -472,11 +507,15 @@ public:
         }
     }
 
-    /* Windows-style arrow cursor at exact pixel position */
+    /* Windows-style arrow cursor: a kernel overlay stamped into VRAM at
+     * flush time, so moving it never requires repainting the scene. */
     void draw_cursor() {
         if (g_api->fb_is_available()) {
-            if (!g_cursor_built) build_cursor();
-            g_api->fb_blit_argb(g_cursor_px, m_mouse_px, m_mouse_py, CUR_W, CUR_H);
+            if (!g_cursor_built) {
+                build_cursor();
+                g_api->fb_set_cursor_image(g_cursor_px, CUR_W, CUR_H);
+            }
+            g_api->fb_set_cursor_pos(m_mouse_px, m_mouse_py);
         } else {
             /* VGA fallback cursor */
             uint16_t* vm = g_api->get_screen_buffer();
@@ -573,6 +612,7 @@ extern "C" void _start(const RitOS_API* api) {
 
     int prev_mx = g_desktop->get_mouse_px_x(), prev_my = g_desktop->get_mouse_px_y();
     uint8_t prev_buttons=0;
+    bool was_hot=false;
     int prev_sec=0;
     { int h=0,m=0,s=0; api->get_time(&h,&m,&s); prev_sec=s; }
 
@@ -582,10 +622,17 @@ extern "C" void _start(const RitOS_API* api) {
 
         if (api->poll_mouse_px(&mx, &my, &buttons)) {
             if (mx!=prev_mx || my!=prev_my || buttons!=prev_buttons) {
+                bool clicked = buttons != prev_buttons;
+                bool hot     = g_desktop->in_hot_zone(mx, my);
                 g_desktop->update_mouse(mx, my, buttons);
-                g_desktop->draw();
+                /* Full scene repaint only when something can have changed:
+                 * a click, an active drag, or pointer hover feedback.
+                 * Plain moves just slide the kernel cursor overlay. */
+                if (clicked || g_desktop->is_dragging() || hot || was_hot)
+                    g_desktop->draw();
                 g_desktop->draw_cursor();
                 api->flush();
+                was_hot = hot;
                 prev_mx=mx; prev_my=my; prev_buttons=buttons;
             }
         }
@@ -612,7 +659,7 @@ extern "C" void _start(const RitOS_API* api) {
         int ch=0,cm=0,cs=0;
         api->get_time(&ch,&cm,&cs);
         if (cs != prev_sec) {
-            g_desktop->draw();
+            g_desktop->draw_taskbar_tick();
             g_desktop->draw_cursor();
             api->flush();
             prev_sec = cs;

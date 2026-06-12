@@ -141,10 +141,10 @@ extern "C" rbx_module* rbx_module_init(const RitOS_API* api, const Desktop_Inter
         int x = SM_X, y = sm_y(), w = sm_w(), h = sm_h();
         int mx = d->get_mouse_px_x(), my = d->get_mouse_px_y();
 
-        /* Shadow + acrylic panel + border */
-        g_api->fb_fill_rect_blend(x+4, y+6, w, h, 0x30000000u);
-        fluent::rrect(x-1, y-1, w+2, h+2, 9, fluent::BORDER_DIM);
+        /* Soft shadow + acrylic panel + hairline border */
+        fluent::shadow(x, y + 4, w, h, 8, 22, 0x5A000000u);
         fluent::rrect(x, y, w, h, 8, fluent::MENU_BG);
+        fluent::stroke(x, y, w, h, 8, 0x40000000u);
 
         /* Search box */
         int sx = x + 24, sy = y + 20, sw2 = w - 48, sh2 = 36;
@@ -154,13 +154,14 @@ extern "C" rbx_module* rbx_module_init(const RitOS_API* api, const Desktop_Inter
         if (g_search_len > 0) {
             fluent::text(g_search, fluent::TEXT, sx + 36, sy + 10);
             /* caret */
-            fluent::rect(sx + 36 + g_search_len * 8 + 1, sy + 9, 1, 18, fluent::TEXT);
+            fluent::rect(sx + 37 + fluent::text_w(g_search), sy + 9, 1, 18,
+                         fluent::TEXT);
         } else {
             fluent::text("Type here to search", fluent::TEXT_DIS, sx + 36, sy + 10);
         }
 
         /* Pinned label */
-        fluent::text("Pinned", fluent::TEXT, x + 28, y + 80);
+        fluent::text("Pinned", fluent::TEXT, x + 28, y + 80, fluent::FONT_BOLD);
 
         /* App grid (filtered by search) */
         int idx[SM_MAX_ITEMS];
@@ -181,9 +182,9 @@ extern "C" rbx_module* rbx_module_init(const RitOS_API* api, const Desktop_Inter
             else
                 fluent::glyph_app(ix, cy + 12, 32);
 
-            int ll = 0; while (it.label[ll]) ll++;
-            int lx = cx + (cw - ll * 8) / 2; if (lx < cx + 2) lx = cx + 2;
-            fluent::text(it.label, fluent::TEXT, lx, cy + 52);
+            int lx = cx + (cw - fluent::text_w(it.label, fluent::FONT_SMALL)) / 2;
+            if (lx < cx + 2) lx = cx + 2;
+            fluent::text(it.label, fluent::TEXT, lx, cy + 52, fluent::FONT_SMALL);
         }
         if (n == 0)
             fluent::text("No results", fluent::TEXT_DIS, x + 28, y + 116);
@@ -196,8 +197,9 @@ extern "C" rbx_module* rbx_module_init(const RitOS_API* api, const Desktop_Inter
         /* avatar circle + username */
         int ay = foot_y + FOOT_H / 2 - 1;
         rit::System::fb_fill_circle(x + 40, ay, 14, fluent::ACCENT);
-        fluent::text("r", fluent::TEXT_WHITE, x + 37, ay - 8);
-        fluent::text("ramim", fluent::TEXT, x + 64, ay - 8);
+        fluent::text_centered("R", fluent::TEXT_WHITE, x + 26, 28, ay - 8,
+                              fluent::FONT_TITLE);
+        fluent::text("ramim", fluent::TEXT, x + 64, ay - 9, fluent::FONT_TITLE);
 
         /* restart + power buttons (36x36) */
         int pwx = x + w - 24 - 36;

@@ -82,14 +82,16 @@ void Window::draw() {
     int radius = m_maximized ? 0 : 8;
 
     if (!m_maximized) {
-        /* Soft drop shadow */
-        fluent::blend(wx + 5, wy + 7, ww, wh, 0x26000000u);
-        fluent::blend(wx + 2, wy + 3, ww, wh, 0x30000000u);
+        /* Soft gaussian-style drop shadow, heavier when focused (Win11) */
+        if (m_active)
+            rit::System::fb_shadow_rounded_rect(wx, wy + 6, ww, wh, radius,
+                                                26, 0x66000000u);
+        else
+            rit::System::fb_shadow_rounded_rect(wx, wy + 3, ww, wh, radius,
+                                                14, 0x40000000u);
     }
 
-    /* 1px border, then the window surface (titlebar = MICA) */
-    uint32_t border_col = m_active ? 0xFFAAAAAAu : fluent::BORDER_DIM;
-    fluent::rrect(wx - 1, wy - 1, ww + 2, wh + 2, radius ? radius + 1 : 0, border_col);
+    /* Window surface (titlebar = MICA), then a 1px hairline border */
     fluent::rrect(wx, wy, ww, wh, radius, fluent::MICA);
 
     /* Content surface below the titlebar (square top edge) */
@@ -157,26 +159,21 @@ void Window::draw() {
     fluent::glyph_cross(x_cl + fluent::CAPTION_W / 2 - 1, gy, 5,
                         hov_cl ? fluent::TEXT_WHITE : glyph_c);
 
-    /* Title text, left-aligned */
+    /* Title text, left-aligned, Instrument Sans */
     uint32_t ttl_col = m_active ? fluent::TEXT : fluent::TEXT_SEC;
-    fluent::text(m_title.c_str(), ttl_col, wx + 16, wy + (kTitlebarPx - 16) / 2);
+    fluent::text(m_title.c_str(), ttl_col, wx + 16,
+                 wy + (kTitlebarPx - fluent::font_h(fluent::FONT_TITLE)) / 2,
+                 fluent::FONT_TITLE);
 
-    /* Generic content text via compat char-grid path */
-    const char* text  = m_content.c_str();
-    int text_len = m_content.length();
-    int max_w = m_width - 4;
-    int max_h = m_height - 3;
-    int ci = 0;
-    for (int row = 0; row < max_h && ci < text_len; row++) {
-        for (int col = 0; col < max_w && ci < text_len; col++) {
-            char c = text[ci++];
-            if (c == '\n') break;
-            char tmp[2] = { c, 0 };
-            rit::System::fb_draw_string_px(
-                tmp, fluent::TEXT, 0,
-                wx + 16 + col * 8, wy + kTitlebarPx + 8 + row * 16, 1);
-        }
-    }
+    /* Hairline border on top of everything inside the frame */
+    if (!m_maximized)
+        rit::System::fb_stroke_rounded_rect(wx, wy, ww, wh, radius,
+                                            m_active ? 0x55000000u : 0x30000000u);
+
+    /* Generic content text (plain windows without a custom draw) */
+    if (m_content.length() > 0)
+        fluent::text(m_content.c_str(), fluent::TEXT,
+                     wx + 16, wy + kTitlebarPx + 10);
 }
 
 } // namespace ritos

@@ -81,6 +81,11 @@ void System::fb_draw_hline_px(int x,int y,int w,uint32_t c) { g_api->fb_draw_hli
 void System::fb_blit_argb_scaled(const uint32_t* s,int sw,int sh,int dx,int dy,int dw,int dh) { g_api->fb_blit_argb_scaled(s,sw,sh,dx,dy,dw,dh); }
 void System::fb_draw_string_scaled(const char* t,uint32_t fg,int x,int y,int sc) { g_api->fb_draw_string_scaled(t,fg,x,y,sc); }
 int  System::fb_draw_wallpaper() { return g_api->fb_draw_wallpaper(); }
+void System::fb_draw_text(const char* t, int x, int y, int font, uint32_t argb) { g_api->fb_draw_text(t, x, y, font, argb); }
+int  System::fb_text_width(const char* t, int font) { return g_api->fb_text_width(t, font); }
+int  System::fb_font_height(int font) { return g_api->fb_font_height(font); }
+void System::fb_stroke_rounded_rect(int x, int y, int w, int h, int r, uint32_t argb) { g_api->fb_stroke_rounded_rect(x, y, w, h, r, argb); }
+void System::fb_shadow_rounded_rect(int x, int y, int w, int h, int r, int blur, uint32_t argb) { g_api->fb_shadow_rounded_rect(x, y, w, h, r, blur, argb); }
 void System::fb_flush_px() { g_api->fb_flush_px(); }
 int  System::fb_get_width()  { return g_api->fb_get_width(); }
 int  System::fb_get_height() { return g_api->fb_get_height(); }

@@ -2,6 +2,8 @@
 #include <ritos/fluent.hpp>
 #include <rit/virtual_filesystem.hpp>
 
+extern const RitOS_API* g_api;
+
 /*
  * Windows-11-styled built-in app windows. Everything is drawn in pixels
  * with fluent.hpp tokens; handle_click receives exact pixel coordinates.
@@ -94,7 +96,7 @@ void SystemMonitorWindow::draw() {
 		tb[0]=(h/10)+'0'; tb[1]=(h%10)+'0'; tb[2]=':';
 		tb[3]=(mn/10)+'0'; tb[4]=(mn%10)+'0'; tb[5]=':';
 		tb[6]=(s/10)+'0'; tb[7]=(s%10)+'0'; tb[8]='\0';
-		fluent::text(tb, fluent::TEXT, bx + bw - 16 - 8*8, ty + 20);
+		fluent::text(tb, fluent::TEXT, bx + bw - 16 - fluent::text_w(tb), ty + 20);
 	}
 }
 
@@ -130,9 +132,10 @@ void CalculatorWindow::draw() {
 	int bx = px() + CALC_PAD, by = content_y() + 8;
 	int bw = pw() - 2 * CALC_PAD;
 
-	/* Display: right-aligned 2x number */
-	int dlen = 0; while (m_display[dlen]) dlen++;
-	fluent::text2x(m_display, fluent::TEXT, bx + bw - 8 - dlen * 16, by + CALC_DISP - 44);
+	/* Display: right-aligned heading number */
+	fluent::text(m_display, fluent::TEXT,
+	             bx + bw - 8 - fluent::text_w(m_display, fluent::FONT_H2),
+	             by + CALC_DISP - 44, fluent::FONT_H2);
 	if (m_op) {
 		char ob[2] = { m_op, 0 };
 		fluent::text(ob, fluent::TEXT_SEC, bx + 4, by + CALC_DISP - 38);
@@ -240,6 +243,11 @@ void TextEditorWindow::save_file() {
 		if (!rit::VFS::exists(m_filename)) rit::VFS::create_file(m_filename, m_buffer);
 		else rit::VFS::write_file(m_filename, m_buffer);
 	}
+	/* Files under /volumes/disk/ mirror the physical disk's FAT root */
+	const char* pre = "/volumes/disk/";
+	int i = 0; while (pre[i] && m_filename[i] == pre[i]) i++;
+	if (!pre[i] && g_api && g_api->storage_export)
+		g_api->storage_export(m_filename);
 }
 
 void TextEditorWindow::draw() {
@@ -267,8 +275,10 @@ void TextEditorWindow::draw() {
 		else {
 			if (cc >= maxw) { cc=0; cr++; }
 			if (cr < maxh) {
+				/* monospace grid: editor content stays on the 8x16 face */
 				char tb[2] = { c, 0 };
-				fluent::text(tb, fluent::TEXT, tx + cc*8, ty + cr*18);
+				rit::System::fb_draw_string_px(tb, fluent::TEXT, 0,
+				                               tx + cc*8, ty + cr*18, 1);
 			}
 			cc++;
 		}
@@ -322,7 +332,7 @@ void ClockWindow::draw() {
 	ts[0]=(hr/10)+'0'; ts[1]=(hr%10)+'0'; ts[2]=':';
 	ts[3]=(mn/10)+'0'; ts[4]=(mn%10)+'0'; ts[5]=':';
 	ts[6]=(sc/10)+'0'; ts[7]=(sc%10)+'0'; ts[8]='\0';
-	rit::System::fb_draw_string_scaled(ts, fluent::TEXT, wx + (ww - 8*8*3) / 2, wy + 40, 3);
+	fluent::text_centered(ts, fluent::TEXT, wx, ww, wy + 36, fluent::FONT_H1);
 
 	/* Date below */
 	int fy = 2000 + yr;
@@ -330,7 +340,7 @@ void ClockWindow::draw() {
 	ds[0]=(fy/1000)+'0'; ds[1]=((fy/100)%10)+'0'; ds[2]=((fy/10)%10)+'0'; ds[3]=(fy%10)+'0';
 	ds[4]='-'; ds[5]=(mo/10)+'0'; ds[6]=(mo%10)+'0';
 	ds[7]='-'; ds[8]=(dy/10)+'0'; ds[9]=(dy%10)+'0'; ds[10]='\0';
-	fluent::text(ds, fluent::TEXT_SEC, wx + (ww - 10*8) / 2, wy + 100);
+	fluent::text_centered(ds, fluent::TEXT_SEC, wx, ww, wy + 100);
 
 	/* Seconds progress */
 	int bar_w = ww - 80;
@@ -387,7 +397,8 @@ void CalendarWindow::draw() {
 
 	const char* wdays[7] = { "Su","Mo","Tu","We","Th","Fr","Sa" };
 	for (int i = 0; i < 7; i++)
-		fluent::text(wdays[i], fluent::TEXT_SEC, gx + i*cw + (cw-16)/2, gy);
+		fluent::text_centered(wdays[i], fluent::TEXT_SEC, gx + i*cw, cw, gy,
+		                      fluent::FONT_SMALL);
 
 	rit::System::fb_draw_hline_px(gx, gy + 22, ww - 32, fluent::STROKE);
 
@@ -399,8 +410,7 @@ void CalendarWindow::draw() {
 	for (int day = 1; day <= dim; day++) {
 		int cx = gx + grid_col*cw, cy = gy + 32 + grid_row*row_h;
 		char dbuf[4]; int_to_str(day, dbuf);
-		int dl = 0; while (dbuf[dl]) dl++;
-		int tx = cx + (cw - dl*8)/2, ty = cy + 8;
+		int tx = cx + (cw - fluent::text_w(dbuf)) / 2, ty = cy + 7;
 
 		if (day == dy) {
 			/* Win11 today: accent filled circle */

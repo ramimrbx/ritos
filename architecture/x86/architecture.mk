@@ -26,12 +26,14 @@ ARCH_OBJS      = $(BUILD)/$(ARCH_DIR)/boot/boot.o
 
 QEMU = qemu-system-i386 -cdrom
 
-# Bootable image for this port: El Torito ISO via GRUB
+# Bootable image for this port: hybrid El Torito ISO via GRUB. With no -d,
+# grub-mkrescue bundles every installed platform (i386-pc + x86_64-efi
+# here), so the same ISO boots from legacy BIOS and from UEFI firmware.
 IMAGE = $(BUILD)/ritos.iso
 
 $(IMAGE): $(BIN) $(ARCH_DIR)/boot/grub.cfg
 	mkdir -p $(BUILD)/iso_root/boot/grub
 	cp $(BIN) $(BUILD)/iso_root/boot/
 	cp $(ARCH_DIR)/boot/grub.cfg $(BUILD)/iso_root/boot/grub/
-	grub-mkrescue -d /usr/lib/grub/i386-pc -o $(IMAGE) $(BUILD)/iso_root
+	grub-mkrescue -o $(IMAGE) $(BUILD)/iso_root
 	rm -rf $(BUILD)/iso_root

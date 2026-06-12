@@ -181,6 +181,15 @@ void System::fb_blit_argb_scaled(const uint32_t* src, int sw, int sh,
 void System::fb_draw_string_scaled(const char* t, uint32_t fg, int x, int y, int s)
     { ::fb_draw_string_scaled(t, fg, x, y, s); }
 int  System::fb_draw_wallpaper() { return ::fb_draw_wallpaper(); }
+void System::fb_draw_text(const char* t, int x, int y, int font, uint32_t argb)
+    { ::fb_draw_text(t, x, y, font, argb); }
+int  System::fb_text_width(const char* t, int font)
+    { return ::fb_text_width(t, font); }
+int  System::fb_font_height(int font) { return ::fb_font_height(font); }
+void System::fb_stroke_rounded_rect(int x, int y, int w, int h, int r, uint32_t argb)
+    { ::fb_stroke_rounded_rect(x, y, w, h, r, argb); }
+void System::fb_shadow_rounded_rect(int x, int y, int w, int h, int r, int blur, uint32_t argb)
+    { ::fb_shadow_rounded_rect(x, y, w, h, r, blur, argb); }
 void System::fb_flush_px() { ::fb_flush(); }
 int  System::fb_get_width()  { return ::fb_get_width(); }
 int  System::fb_get_height() { return ::fb_get_height(); }
@@ -357,6 +366,32 @@ static int api_storage_export(const char* vfs_path) {
 	return fat_write_file(base, data, (uint32_t)length);
 }
 
+static int api_storage_delete(const char* name) {
+	return fat_delete_file(name);
+}
+
+static int api_storage_rename(const char* old_name, const char* new_name) {
+	return fat_rename_file(old_name, new_name);
+}
+
+static void api_fb_set_cursor_image(const uint32_t* argb, int w, int h) {
+	::fb_set_cursor_image(argb, w, h);
+}
+static void api_fb_set_cursor_pos(int x, int y) {
+	::fb_set_cursor_pos(x, y);
+}
+
+static void api_fb_draw_text(const char* t, int x, int y, int font, uint32_t argb)
+	{ ::fb_draw_text(t, x, y, font, argb); }
+static int  api_fb_text_width(const char* t, int font)
+	{ return ::fb_text_width(t, font); }
+static int  api_fb_font_height(int font)
+	{ return ::fb_font_height(font); }
+static void api_fb_stroke_rounded_rect(int x, int y, int w, int h, int r, uint32_t argb)
+	{ ::fb_stroke_rounded_rect(x, y, w, h, r, argb); }
+static void api_fb_shadow_rounded_rect(int x, int y, int w, int h, int r, int blur, uint32_t argb)
+	{ ::fb_shadow_rounded_rect(x, y, w, h, r, blur, argb); }
+
 static const RitOS_API g_api_table = {
 	.version = 1,
 	.print = api_print,
@@ -407,6 +442,15 @@ static const RitOS_API g_api_table = {
 	.fb_blit_argb_scaled = api_fb_blit_argb_scaled,
 	.fb_draw_string_scaled = api_fb_draw_string_scaled,
 	.fb_draw_wallpaper = api_fb_draw_wallpaper,
+	.fb_set_cursor_image = api_fb_set_cursor_image,
+	.fb_set_cursor_pos = api_fb_set_cursor_pos,
+	.storage_delete = api_storage_delete,
+	.storage_rename = api_storage_rename,
+	.fb_draw_text = api_fb_draw_text,
+	.fb_text_width = api_fb_text_width,
+	.fb_font_height = api_fb_font_height,
+	.fb_stroke_rounded_rect = api_fb_stroke_rounded_rect,
+	.fb_shadow_rounded_rect = api_fb_shadow_rounded_rect,
 };
 
 namespace rit {

@@ -30,6 +30,16 @@ multiboot2_start:
 .short 0                          /* Flags */
 .long 8                           /* Size */
 
+/* Framebuffer tag: ask the bootloader (BIOS VBE or UEFI GOP alike) for a
+   linear framebuffer; it falls back to the closest supported mode. */
+.align 8
+.short 5                          /* Type: Framebuffer */
+.short 0                          /* Flags */
+.long 20                          /* Size */
+.long 1920                        /* Width */
+.long 1080                        /* Height */
+.long 32                          /* Depth (bpp) */
+
 .align 8
 .short 0                          /* Type: End */
 .short 0                          /* Flags */
