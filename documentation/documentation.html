@@ -1356,7 +1356,11 @@
             <span>Host Terminal</span>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
-          <pre><code>sudo apt update && sudo apt install -y \
+          <pre><code># Recommended: Automatically install/update all dependencies
+./hive toolsync
+
+# Or manually:
+sudo apt update && sudo apt install -y \
     build-essential \
     gcc-multilib \
     g++-multilib \
@@ -1376,7 +1380,7 @@
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           </div>
           <pre><code># Method A: Build script (Recommended)
-./scripts/build_iso.sh
+./hive build -iso
 
 # Method B: Makefile
 make clean && make</code></pre>

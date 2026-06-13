@@ -14,7 +14,12 @@ To build and run RitOS, you need an x86/x86_64 Linux host system (such as Ubuntu
 
 ### Installing Dependencies (Ubuntu/Debian)
 
-Run the following command to install all necessary packages:
+You can automatically install or update all required packages using the build tool:
+```bash
+./hive toolsync
+```
+
+Alternatively, you can manually run:
 ```bash
 sudo apt update && sudo apt install -y \
     build-essential \
@@ -26,6 +31,7 @@ sudo apt update && sudo apt install -y \
     qemu-system-x86
 ```
 
+
 ---
 
 ## 🛠️ How to Build the Project
@@ -36,7 +42,7 @@ RitOS can be built using either the provided shell script or GNU Make.
 
 The build script automatically cleans old binaries, sets up any paths for tools, and compiles the bootable ISO:
 ```bash
-./scripts/build_iso.sh
+./hive build -iso
 ```
 
 ### Method 2: Using GNU Make Directly
@@ -95,7 +101,7 @@ assets/         Graphics and fonts
   generated/      headers and icon blobs generated from them
 tools/          Host-side build tools: embed_filesystem, elf_to_rbx,
                 generators
-scripts/        Build orchestration (build_iso.sh)
+hive            Build orchestration tool (hive build -iso, hive toolsync)
 documentation/  Project documentation
 build/          All build output (gitignored)
 ```

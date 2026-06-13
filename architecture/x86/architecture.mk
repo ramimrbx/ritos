@@ -29,7 +29,8 @@ QEMU = qemu-system-i386 -cdrom
 # Bootable image for this port: hybrid El Torito ISO via GRUB. With no -d,
 # grub-mkrescue bundles every installed platform (i386-pc + x86_64-efi
 # here), so the same ISO boots from legacy BIOS and from UEFI firmware.
-IMAGE = $(BUILD)/ritos.iso
+VERSION ?= $(shell grep -o 'Version [0-9.]*' userspace/libraries/graphical_interface/source/application_windows.cpp | head -n 1 | cut -d' ' -f2)
+IMAGE = $(BUILD)/ritos-v$(VERSION).iso
 
 $(IMAGE): $(BIN) $(ARCH_DIR)/boot/grub.cfg
 	mkdir -p $(BUILD)/iso_root/boot/grub

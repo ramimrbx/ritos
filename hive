@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# hive - Build orchestration and package manager tool for RitOS.
+set -e
+
+# Make sure we run relative to the root directory of RitOS
+ROOT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+cd "$ROOT_DIR"
+
+show_usage() {
+    echo "Usage: ./hive <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  build -iso      Build the OS and generate the bootable ISO"
+    echo "  toolsync        Install or update necessary system build tools"
+    exit 1
+}
+
+if [ $# -lt 1 ]; then
+    show_usage
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    build)
+        if [ "$1" != "-iso" ]; then
+            echo "Error: Unknown build target '$1'. Only '-iso' is supported."
+            show_usage
+        fi
+        
+        JOBS=$(nproc 2>/dev/null || echo 4)
+        echo "[RitOS Build] Cleaning old files..."
+        make clean
+
+        echo "[RitOS Build] Compiling RitOS and generating ISO (-j$JOBS)..."
+        make -j"$JOBS"
+
+        # Dynamically extract version from codebase
+        VERSION=$(grep -o 'Version [0-9.]*' userspace/libraries/graphical_interface/source/application_windows.cpp | head -n 1 | cut -d' ' -f2)
+        if [ -z "$VERSION" ]; then
+            VERSION="unknown"
+        fi
+
+        if [ -f "build/ritos-v${VERSION}.iso" ]; then
+            echo "[RitOS Build] Success! Generated build/ritos-v${VERSION}.iso"
+        else
+            echo "[RitOS Build] Error: ISO build failed!"
+            exit 1
+        fi
+        ;;
+
+    toolsync)
+        PACKAGES=(
+            build-essential
+            gcc-multilib
+            g++-multilib
+            grub-pc-bin
+            xorriso
+            mtools
+            qemu-system-x86
+            python3-pil
+            python3-cairosvg
+            kbd
+        )
+
+        echo "[RitOS ToolSync] Updating package databases..."
+        sudo apt-get update
+
+        echo "[RitOS ToolSync] Installing and updating system tools..."
+        sudo apt-get install -y "${PACKAGES[@]}"
+
+        echo "[RitOS ToolSync] All packages successfully installed and updated!"
+        ;;
+
+    *)
+        echo "Error: Unknown command '$COMMAND'"
+        show_usage
+        ;;
+esac
